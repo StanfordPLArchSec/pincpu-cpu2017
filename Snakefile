@@ -38,11 +38,18 @@ checkpoint bbhist:
         r'monitor_wrapper="$wrap --stdout=$outdir/stdout.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir {input.script} --bbhist=$outdir/bbhist.txt -- \${{command}}" && '
         'runcpu --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{input.build} --size={wildcards.size} --noreportable '
         '--define monitor_wrapper="$monitor_wrapper" {wildcards.bench}'
-    
-# rule _pincpu:
-#     input:
-#         gem5 = gem5_pin_exe,
-# 
-# rule bbhist:
-#     input:
+
+def get_bbhist(wildcards):
+    outdir = checkpoints.bbhist.get(**wildcards).output
+    bbhist = expand(f"{outdir}/{{input}}/bbhist.txt", **wildcards)
+    return bbhist
         
+rule instlist:
+    input:
+        bbhist = get_bbhist,
+        script = "helpers/instlist.py",
+    output:
+        "{bench}/cpt/{size}/{sw}/{sw}/instlist.{input}.txt"
+    shell:
+        "{input.script} < {input.bbhist} > {output}"
+
