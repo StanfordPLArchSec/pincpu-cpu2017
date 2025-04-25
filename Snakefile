@@ -15,6 +15,17 @@ wildcard_constraints:
     group = "[a-z]+",
     size = "(test|train|ref)",
 
+compilers = ["base", "slh"]
+groups = {
+    "main": ["base", "slh"],
+}
+    
+def list_group(name):
+    if name in compilers:
+        return name
+    else:
+        return groups[name]
+    
 # TODO: Consider making this a plain rule again.
 checkpoint build_cpu2017_bench:
     output:
@@ -97,10 +108,22 @@ rule srclocs:
 
 rule lehist:
     input:
-        bbhist = "{bench}/cpt/{size}/{sw}/{sw}/bbhist/{input}/bbhist.txt",
+        bbhist = get_bbhist,
         srclocs = "{bench}/cpt/{size}/{sw}/{sw}/srclocs.{input}.txt",
         script = "helpers/lehist.py",
     output:
         "{bench}/cpt/{size}/{sw}/{sw}/lehist.{input}.txt"
     shell:
         "{input.script} --bbhist={input.bbhist} --srclocs={input.srclocs} > {output}"
+
+rule shlocedges:
+    input:
+        lehists = lambda w: \
+            expand("{bench}/cpt/{size}/{sw}/{sw}/lehist.{input}.txt",
+                   **w, sw = list_group(w.group)),
+        script = "helpers/shlocedges.py",
+    output:
+        "{bench}/cpt/{size}/{group}/shlocedges.{input}.txt"
+    shell:
+        "mkdir -p $(dirname {output}) && "
+        "{input.script} {input.lehists} > {output}"
