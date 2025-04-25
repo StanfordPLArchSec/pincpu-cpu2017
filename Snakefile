@@ -62,7 +62,7 @@ checkpoint bbhist:
         script = os.path.join(gem5_pin_configs, "pin-bbhist.py"),
         build = "{bench}/bin/{sw}",
     output:
-        directory("{bench}/cpt/{size}/{sw}/{sw}/bbhist")
+        directory("{bench}/cpt/{size}/{sw}/{sw}/bbhist"),
     params:
         workload = lambda w: r"\${workload}"
     shell:
@@ -127,3 +127,15 @@ rule shlocedges:
     shell:
         "mkdir -p $(dirname {output}) && "
         "{input.script} {input.lehists} > {output}"
+
+rule instwaypts:
+    input:
+        bbhist = "{bench}/cpt/{size}/{sw}/{sw}/bbhist/{input}/bbhist.txt",
+        srclocs = "{bench}/cpt/{size}/{sw}/{sw}/srclocs.{input}.txt",
+        shlocedges = "{bench}/cpt/{size}/{group}/shlocedges.{input}.txt",
+        script = "helpers/instwaypts.py",
+    output:
+        "{bench}/cpt/{size}/{group}/{sw}/instwaypts.{input}.txt"
+    shell:
+        "{input.script} --bbhist={input.bbhist} --srclocs={input.srclocs} --shlocedges={input.shlocedges} > {output}"
+
