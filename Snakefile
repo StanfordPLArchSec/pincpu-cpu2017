@@ -66,7 +66,8 @@ def get_bbhist(wildcards):
     outdir = checkpoints.bbhist.get(**wildcards).output
     bbhist = expand(f"{outdir}/{{input}}/bbhist.txt", **wildcards)
     return bbhist
-        
+
+# TODO: For release, can combine these all into one step.
 rule instlist:
     input:
         bbhist = get_bbhist,
@@ -85,3 +86,21 @@ rule srclist:
     shell:
         addr2line + " --exe {input.exe} --output-style=JSON < {input.instlist} > {output}"
 
+rule srclocs:
+    input:
+        srclist = "{bench}/cpt/{size}/{sw}/{sw}/srclist.{input}.txt",
+        script = "helpers/srclocs.py",
+    output:
+        "{bench}/cpt/{size}/{sw}/{sw}/srclocs.{input}.txt",
+    shell:
+        "{input.script} --basename < {input.srclist} > {output}"
+
+rule lehist:
+    input:
+        bbhist = "{bench}/cpt/{size}/{sw}/{sw}/bbhist/{input}/bbhist.txt",
+        srclocs = "{bench}/cpt/{size}/{sw}/{sw}/srclocs.{input}.txt",
+        script = "helpers/lehist.py",
+    output:
+        "{bench}/cpt/{size}/{sw}/{sw}/lehist.{input}.txt"
+    shell:
+        "{input.script} --bbhist={input.bbhist} --srclocs={input.srclocs} > {output}"
