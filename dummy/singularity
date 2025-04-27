@@ -1,0 +1,2 @@
+#!/bin/sh
+echo "apptainer version 1.3.4"
