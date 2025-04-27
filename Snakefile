@@ -4,6 +4,8 @@ import glob
 import types
 import humanfriendly
 
+container: "../docker/pincpu.sif"
+
 gem5_pin_src = os.path.abspath("../gem5/pincpu")
 gem5_pin_exe = gem5_pin_src + "/build/X86/gem5.opt"
 gem5_pin_configs = gem5_pin_src + "/configs"
