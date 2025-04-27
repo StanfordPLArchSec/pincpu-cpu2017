@@ -4,6 +4,8 @@ import glob
 import types
 import humanfriendly
 
+container: "../docker/pincpu.sif"
+
 gem5_pin_src = os.path.abspath("../gem5/pincpu")
 gem5_pin_exe = gem5_pin_src + "/build/X86/gem5.opt"
 gem5_pin_configs = gem5_pin_src + "/configs"
@@ -251,6 +253,7 @@ rule o3:
     shell:
         'rm -rf {params.outdir} && '
         r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
+        'cd cpu2017 && source shrc && cd .. && '
         r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- prlimit --as={params.hostmem} -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
         r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
         + runcpu + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
