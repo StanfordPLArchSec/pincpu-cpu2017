@@ -10,4 +10,4 @@ runcpu "$@" | tee $tmp
 # Check for errors.
 # If error is found exit with non-zero exit code.
 # Otherwise, exit cleanly.
-! grep '^Error:' $tmp
+! grep -q '^Error:' $tmp
