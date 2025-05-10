@@ -11,7 +11,8 @@ gem5_pin_exe = gem5_pin_src + "/build/X86/gem5.opt"
 gem5_pin_configs = gem5_pin_src + "/configs"
 cpu2017 = os.path.abspath("cpu2017")
 addr2line = "../llvm/build/bin/llvm-addr2line"
-runcpu = os.path.abspath("myruncpu")
+runcpu_build = os.path.abspath("wrap-runcpu-build")
+runcpu_run = os.path.abspath("wrap-runcpu-run")
 
 wildcard_constraints:
     bench = r"6[0-9][0-9]\.[0-9a-zA-Z]+_s",
@@ -67,8 +68,63 @@ resources_train = {
     },
 }
 
+resources_ref = {
+    "602.gcc_s": {
+        "mem": "16GiB",
+        "hostmem": "20GiB",
+    },
+    "605.mcf_s": {
+        "mem": "16GiB",
+        "hostmem": "24GiB",
+    },
+    "631.deepsjeng_s": {
+        "mem": "8GiB",
+        "hostmem": "20GiB",
+    },
+    "657.xz_s": {
+        "mem": "32GiB",
+        "hostmem": "36GiB",
+    },
+    "603.bwaves_s": {
+        "mem": "16GiB",
+        "hostmem": "24GiB",
+    },
+    "607.cactuBSSN_s": {
+        "mem": "16GiB",
+        "hostmem": "20GiB",
+    },
+    "619.lbm_s": {
+        "mem": "4GiB",
+        "hostmem": "20GiB",
+    },
+    "621.wrf_s": {
+        "stack": "128MiB",
+    },
+    "627.cam4_s": {
+        "stack": "128MiB",
+    },
+    "628.pop2_s": {
+        "mem": "2GiB",
+        "stack": "2GiB",
+    },
+    "638.imagick_s": {
+        "mem": "8GiB",
+        "hostmem": "12GiB",
+    },
+    "649.fotonik3d_s": {
+        "mem": "16GiB",
+        "hostmem": "24GiB",
+    },
+    "654.roms_s": {
+        "mem": "16GiB",
+        "stack": "64MiB",
+        "hostmem": "20GiB",
+    },
+}
+
 resources = {
     "train": resources_train,
+    "ref": resources_ref,
 }
 
 def get_resources(w):
@@ -111,7 +167,7 @@ checkpoint build_cpu2017_bench:
     shell:
         # TODO: Might be able to use monitor_specrun_wrapper?
         "pushd {params.cpu2017} >/dev/null && source shrc && popd >/dev/null && "
-        "runcpu --config=pincpu-{wildcards.sw} --tune=base --action=build --output_root=$PWD/{params.build} {wildcards.bench} && "
+        + runcpu_build + " --config=pincpu-{wildcards.sw} --tune=base --action=build --output_root=$PWD/{params.build} {wildcards.bench} && "
         "[ -f {params.exe} ] && [ -x {params.exe} ] && ln -sf {params.exe} {output.exe}"
         
 checkpoint bbhist:
@@ -120,19 +176,45 @@ checkpoint bbhist:
         script = os.path.join(gem5_pin_configs, "pin-bbhist.py"),
         exe = "{bench}/bin/{sw}/exe",
     output:
-        # FIXME: This is not resilient to crashes.
-        directory("{bench}/cpt/{size}/{sw}/{sw}/bbhist"),
+        stamp = "{bench}/cpt/{size}/{sw}/{sw}/bbhist/stamp.txt"
     params:
+        outdir = "{bench}/cpt/{size}/{sw}/{sw}/bbhist",
         # TODO: inline.
         workload = lambda w: r"\${workload}",
         build = "{bench}/bin/{sw}",
+        sim_mem = lambda w: get_resources(w).mem,
+        stack = lambda w: get_resources(w).stack,
     shell:
-        'rm -rf {output} && '
+        'rm -rf {params.outdir} && mkdir -p {params.outdir} && '
         'wrap="$PWD/wrap.py" && '
-        r'outdir="$PWD/{output}/{params.workload}" && '
-        r'monitor_wrapper="$wrap --stdout=$outdir/stdout.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir {input.script} --bbhist=$outdir/bbhist.txt -- \${{command}}" && '
-        'runcpu --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
-        '--define monitor_wrapper="$monitor_wrapper" {wildcards.bench}'
+        r'outdir="$PWD/{params.outdir}/{params.workload}" && '
+        r'monitor_wrapper="mkdir -p $outdir && $wrap --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir {input.script} --bbhist=$outdir/bbhist.txt --mem-size={params.sim_mem} --max-stack-size={params.stack} -- \${{command}}" && '
+        r'monitor_specrun_wrapper="/usr/bin/time -vo $PWD/{params.outdir}/time.txt -- $PWD/wrap-specinvoke.py -- \${{command}}" && '                
+        'cd cpu2017 && source shrc && cd .. && '
+        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
+        '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
+        'touch {output.stamp}'
+
+rule valgrind:
+    input:
+        exe = "{bench}/bin/{sw}/exe"
+    output:
+        stamp = "{bench}/cpt/{size}/{sw}/{sw}/valgrind/stamp.txt"
+    params:
+        outdir = "{bench}/cpt/{size}/{sw}/{sw}/valgrind",
+        workload = lambda w: r"\${workload}",
+        build = "{bench}/bin/{sw}",
+    shell:
+        'rm -rf {params.outdir} && mkdir -p {params.outdir} && '
+        r'outdir="$PWD/{params.outdir}/{params.workload}" && '
+        r'monitor_wrapper="mkdir -p $outdir && /usr/bin/time -vo $outdir/time.txt -- valgrind --tool=exp-bbv -- \${{command}}" && '
+        r'monitor_specrun_wrapper="/usr/bin/time -vo $PWD/{params.outdir}/time.txt -- $PWD/wrap-specinvoke.py -- \${{command}}" && '        
+        'cd cpu2017 && source shrc && cd .. && '
+        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
+        '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
+        'touch {output.stamp}'
+
+    
 
 def get_bbhist(wildcards):
     outdir = checkpoints.bbhist.get(**wildcards).output
@@ -256,7 +338,34 @@ rule o3:
         'cd cpu2017 && source shrc && cd .. && '
         r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- prlimit --as={params.hostmem} -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
         r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
-        + runcpu + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
+        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
         '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
         'touch {output.stamp}'
 
+rule chunk:
+    input:
+        gem5 = lambda w: os.path.abspath("../gem5/pincpu/build/X86/gem5.opt"),
+        script = lambda w: os.path.abspath("../gem5/pincpu/configs/pin-chunk.py"),
+        exe = "{bench}/bin/{sw}/exe",
+    output:
+        stamp = "{bench}/chunk/{size}/{sw}/stamp.txt",
+    params:
+        # TODO: This should be unified, get_script_opts(w).
+        build = "{bench}/bin/{sw}",
+        outdir = "{bench}/chunk/{size}/{sw}",
+        script_opts = "", # TODO: Remove.
+        sim_mem = lambda w: get_resources(w).mem,
+        stack = lambda w: get_resources(w).stack,
+        hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+    resources:
+        runtime = "2d",
+        mem = lambda w: get_resources(w).hostmem,
+    shell:
+        'rm -rf {params.outdir} && '
+        r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
+        'cd cpu2017 && source shrc && cd .. && '
+        r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- prlimit --as={params.hostmem} -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
+        r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
+        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
+        '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
+        'touch {output.stamp}'
