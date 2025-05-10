@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -e
+
+tmp=$(mktemp)
+# trap "rm $tmp" EXIT
+
+runcpu "$@" | tee $tmp
+
+if grep -q '^Build errors:' $tmp; then
+    exit 1
+else
+    true
+fi
+# grep -q '^Build errors:' $tmp
