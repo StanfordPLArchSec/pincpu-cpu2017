@@ -21,10 +21,11 @@ wildcard_constraints:
     group = "[a-z]+",
     size = "(test|train|ref)",
     cptid = "[0-9]+",
+    hwconf = "[a-z]+",
 
-compilers = ["base", "slh"]
+compilers = ["base", "slh", "retpoline"]
 groups = {
-    "main": ["base", "slh"],
+    "main": ["base", "slh", "retpoline"],
 }
     
 def list_group(name):
@@ -40,7 +41,11 @@ hwconfs = {
     ),
     "stt": types.SimpleNamespace(
         sim = "stt",
-        script_opts = ["--implicit-channel=Lazy", "--speculation-model=CondCtrl"],
+        script_opts = [
+            "--stt",
+            "--implicit-channel=Lazy",
+            "--speculation-model=Ctrl",
+        ],
     ),
 }
 
@@ -156,6 +161,13 @@ def get_exe(w):
     exe, = expand(path, **w)
     return os.path.abspath(exe)
 
+def compile_mem(w):
+    d = {
+        "621.wrf_s": "16GiB",
+    }
+    return d.get(w.bench, "8GiB")
+
+
 # TODO: Consider making this a plain rule again.
 checkpoint build_cpu2017_bench:
     output:
@@ -165,6 +177,8 @@ checkpoint build_cpu2017_bench:
         exe = get_exe,
         build = "{bench}/bin/{sw}",
     threads: 8
+    resources:
+        mem = compile_mem
     shell:
         # TODO: Might be able to use monitor_specrun_wrapper?
         "pushd {params.cpu2017} >/dev/null && source shrc && popd >/dev/null && "
@@ -315,6 +329,11 @@ def get_gem5(w):
     gem5, = expand("../gem5/{sim}", sim = hwconfs[w.hwconf].sim)
     return os.path.abspath(gem5)
 
+
+def o3_hostmem(w):
+    return max(humanfriendly.parse_size(get_resources(w).hostmem),
+               humanfriendly.parse_size("12GiB"))
+
 rule o3:
     input:
         gem5 = lambda w: get_gem5(w) + "/build/X86/gem5.opt",
@@ -329,15 +348,14 @@ rule o3:
         script_opts = lambda w: hwconfs[w.hwconf].script_opts,
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
-        hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
     resources:
         runtime = "2w",
-        mem = lambda w: get_resources(w).hostmem,
+        mem = lambda w: humanfriendly.format_size(o3_hostmem(w)),
     shell:
         'rm -rf {params.outdir} && '
         r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
         'cd cpu2017 && source shrc && cd .. && '
-        r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- prlimit --as={params.hostmem} -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
+        r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
         r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
         + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
         '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
@@ -423,8 +441,24 @@ rule chunk_run:
         '--checkpoint-dir={params.cptdir} '
         '--checkpoint-restore=$(({wildcards.cptid}+1)) '
         '--restore-simpoint-checkpoint '
+        '{params.script_opts} '
         '-- {input.exe} '
         '&& touch {output.stamp} '
+
+def chunk_run_all_input(w):
+    out = []
+    for path in get_checkpoints(w):
+        input, cptdir = path.split("/")[-3:-1]
+        cptid = cptdir.split(".")[-1]
+        if input == w.input:
+            out.extend(
+                expand("{bench}/chunk/{size}/{sw}/exp/{hwconf}/{input}/{cptid}/stamp.txt",
+                       cptid = cptid, **w))
+    return out
+        
+rule chunk_run_all_input:
+    input: chunk_run_all_input
+    output: "{bench}/chunk/{size}/{sw}/exp/{hwconf}/{input}/all"
 
 def chunk_run_all_inputs(w):
     out = []
