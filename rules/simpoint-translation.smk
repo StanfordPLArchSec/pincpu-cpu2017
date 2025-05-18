@@ -135,3 +135,25 @@ rule simpoint_translation_bbv:
 def simpoint_translation_bbv_dir(w):
     return os.path.dirname(checkpoints.simpoint_translation_bbv.get(**w).output.stamp)
 
+def simpoint_translation_bbv_file(w, name):
+    dir = simpoint_translation_bbv_dir(w)
+    return os.path.join(dir, name)
+
+def simpoint_translation_simpoint_file(group, name):
+    return "{bench}/simpoint-translation/{size}/{group}/" + list_group(group)[0] + "/simpoint/{input}/" + name
+
+rule simpoint_translation_simpoint:
+    input:
+        bbv = lambda w: simpoint_legacy_bbv_file(w, "bbv.txt"),
+        exe = simpoint_exe,
+    output:
+        intervals = "{bench}/simpoint-translation/{size}/{group}/{sw}/simpoint/{input}/intervals.txt",
+        weights   = "{bench}/simpoint-translation/{size}/{group}/{sw}/simpoint/{input}/weights.txt",
+    params:
+        outdir = lambda w: "{bench}/simpoint-translation/{size}/{group}/{sw}/simpoint/{input}",
+        num_simpoints = num_simpoints,
+    shell:
+        "rm -rf {params.outdir} && mkdir -p {params.outdir} && "
+        "{input.exe} -loadFVFile {input.bbv} -maxK {params.num_simpoints} -saveSimpoints {output.intervals} -saveSimpointWeights {output.weights} -fixedLength off "
+        "> {params.outdir}/stdout 2> {params.outdir}/stderr"
+        
