@@ -14,7 +14,7 @@ addr2line = "../llvm/build/bin/llvm-addr2line"
 runcpu_build = os.path.abspath("wrap-runcpu-build")
 runcpu_run = os.path.abspath("wrap-runcpu-run")
 simpoint_exe = "../simpoint/bin/simpoint"
-num_simpoints = 10
+num_simpoints = 100 # Effectively unlimited.
 
 wildcard_constraints:
     bench = r"6[0-9][0-9]\.[0-9a-zA-Z]+_s",
@@ -24,6 +24,7 @@ wildcard_constraints:
     size = "(test|train|ref)",
     cptid = "[0-9]+",
     hwconf = "[a-z]+",
+    type = "[a-z-]+",
 
 compilers = ["base", "slh", "retpoline"]
 groups = {
@@ -50,6 +51,8 @@ hwconfs = {
         ],
     ),
 }
+
+include: "rules/cpu2017.smk"
 
 resources_train = {
     "631.deepsjeng_s": {
@@ -130,9 +133,12 @@ resources_ref = {
     },
 }
 
+resources_test = {}
+
 resources = {
     "train": resources_train,
     "ref": resources_ref,
+    "test": resources_test,
 }
 
 def get_resources(w):
@@ -247,3 +253,4 @@ rule o3:
 include: "rules/chunk.smk"
 include: "rules/simpoint-legacy.smk"
 include: "rules/simpoint-translation.smk"
+include: "rules/traceval.smk" # Trace validation.
