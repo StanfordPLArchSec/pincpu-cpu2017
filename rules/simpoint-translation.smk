@@ -103,7 +103,7 @@ rule instwaypts:
     shell:
         "{input.script} --bbhist={input.bbhist} --srclocs={input.srclocs} --shlocedges={input.shlocedges} > {output}"
 
-rule simpoint_translation_bbv:
+checkpoint simpoint_translation_bbv:
     input:
         gem5 = gem5_pin_exe,
         script = os.path.join(gem5_pin_configs, "pin-bbv.py"),
@@ -137,7 +137,7 @@ def simpoint_translation_bbv_dir(w):
 
 def simpoint_translation_bbv_file(w, name):
     dir = simpoint_translation_bbv_dir(w)
-    return os.path.join(dir, name)
+    return expand(os.path.join(dir, "{input}", name), **w)
 
 def simpoint_translation_simpoint_file(group, name):
     return "{bench}/simpoint-translation/{size}/{group}/" + list_group(group)[0] + "/simpoint/{input}/" + name
@@ -156,4 +156,16 @@ rule simpoint_translation_simpoint:
         "rm -rf {params.outdir} && mkdir -p {params.outdir} && "
         "{input.exe} -loadFVFile {input.bbv} -maxK {params.num_simpoints} -saveSimpoints {output.intervals} -saveSimpointWeights {output.weights} -fixedLength off "
         "> {params.outdir}/stdout 2> {params.outdir}/stderr"
-        
+
+rule simpoint_translation_simpoint_json:
+    input:
+        intervals = lambda w: \
+            expand("{bench}/simpoint-translation/{size}/{group}/{sw}/simpoint/{input}/intervals.txt", **w, sw = list_group(w.group)[0]),
+        weights = lambda w: \
+            expand("{bench}/simpoint-translation/{size}/{group}/{sw}/simpoint/{input}/intervals.txt", **w, sw = list_group(w.group)[0]),
+        bbvinfo = lambda w: simpoint_translation_bbv_file({**dict(w), "sw": list_group(w.group)[0]}, "bbvinfo.txt"),
+        exe = "helpers/simpoints.py",
+    output:
+        "{bench}/simpoint-translation/{size}/{group}/simpoint.{input}.json"
+    shell:
+        "{input.exe} --intervals={input.intervals} --weights={input.weights} --bbvinfo={input.bbvinfo} > {output}"
