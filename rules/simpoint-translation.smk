@@ -27,11 +27,13 @@ checkpoint bbhist:
         '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
         'touch {output.stamp}'
 
+# TODO: Rename.
 def get_bbhist(wildcards):
     outdir = checkpoints.bbhist.get(**wildcards).output
     bbhist = expand(f"{outdir}/{{input}}/bbhist.txt", **wildcards)
     return bbhist
 
+# TODO: Rename.
 def get_inputs(wildcards):
     outdir = checkpoints.bbhist.get(**wildcards).output
     bbhists = glob.glob(f"{outdir}/*/bbhist.txt")
@@ -39,7 +41,6 @@ def get_inputs(wildcards):
     for bbhist in bbhists:
         inputs.append(os.path.basename(os.path.dirname(bbhist)))
     return inputs
-        
 
 # TODO: For release, can combine these all into one step.
 rule instlist:
@@ -110,14 +111,23 @@ rule bbv:
         instwaypts = lambda w: \
             expand("{bench}/simpoint-translation/{size}/{group}/{sw}/instwaypts.{input}.txt", **w, input = get_inputs(w))
     output:
-        directory("{bench}/simpoint-translation/{size}/{sw}/{sw}/bbv")
+        stamp = "{bench}/simpoint-translation/{size}/{group}/{sw}/bbv/stamp.txt"
     params:
-        build = "{bench}/bin/{sw}",        
+        build = "{bench}/bin/{sw}",
+        outdir = "{bench}/simpoint-translation/{size}/{group}/{sw}/bbv",
+        sim_mem = lambda w: get_resources(w).mem,
+        stack = lambda w: get_resources(w).stack,
+        hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+        warmup   = 10000000,
+        interval = 50000000,
+        groupdir = "{bench}/simpoint-translation/{size}/{group}/{sw}",
     shell:
-        # TODO: Refactor with bbhist.
-        'rm -rf {output} && '
-        'wrap="$PWD/wrap.py" && '
-        r'outdir="$PWD/{output}/\${{workload}}" && '
-        r'monitor_wrapper="$wrap --stdout=$outdir/stdout.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir {input.script} --bbv=$outdir/bbv.txt --bbvinfo=$outdir/bbvinfo.txt --warmup={params.warmup} --interval={params.interval} --waypoints={input.instwaypts} -- \${{command}}" && '
-        'runcpu --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
-        '--define monitor_wrapper="$monitor_wrapper" {wildcards.bench}'
+        # TODO: Refactor with duplicate code?
+        'rm -rf {params.outdir} && '
+        r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
+        'cd cpu2017 && source shrc && cd .. && '
+        r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- prlimit --as={params.hostmem} -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --max-stack-size={params.stack} --mem-size={params.sim_mem} --bbv=$outdir/bbv.txt --bbvinfo=$outdir/bbvinfo.txt --warmup={params.warmup} --interval={params.interval} --waypoints=$PWD/{params.groupdir}/instwaypts.\${{workload}}.txt -- \${{command}}" && '
+        r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
+        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
+        '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
+        'touch {output.stamp}'
