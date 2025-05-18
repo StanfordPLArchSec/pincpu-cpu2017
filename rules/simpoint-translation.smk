@@ -8,8 +8,6 @@ checkpoint bbhist:
         stamp = "{bench}/simpoint-translation/{size}/{sw}/{sw}/bbhist/stamp.txt"
     params:
         outdir = "{bench}/simpoint-translation/{size}/{sw}/{sw}/bbhist",
-        # TODO: inline.
-        workload = lambda w: r"\${workload}",
         build = "{bench}/bin/{sw}",
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
@@ -29,15 +27,17 @@ checkpoint bbhist:
 
 # TODO: Rename.
 def get_bbhist(wildcards):
-    outdir = checkpoints.bbhist.get(**wildcards).output
+    outdir = os.path.dirname(checkpoints.bbhist.get(**wildcards).output.stamp)
+    print("get_bbhist: " + outdir)
     bbhist = expand(f"{outdir}/{{input}}/bbhist.txt", **wildcards)
     return bbhist
 
 # TODO: Rename.
 def get_inputs(wildcards):
-    outdir = checkpoints.bbhist.get(**wildcards).output
+    outdir = os.path.dirname(checkpoints.bbhist.get(**wildcards).output.stamp)
     bbhists = glob.glob(f"{outdir}/*/bbhist.txt")
     inputs = []
+    print("get_inputs: " + outdir)
     for bbhist in bbhists:
         inputs.append(os.path.basename(os.path.dirname(bbhist)))
     return inputs
@@ -103,7 +103,7 @@ rule instwaypts:
     shell:
         "{input.script} --bbhist={input.bbhist} --srclocs={input.srclocs} --shlocedges={input.shlocedges} > {output}"
 
-rule bbv:
+rule simpoint_translation_bbv:
     input:
         gem5 = gem5_pin_exe,
         script = os.path.join(gem5_pin_configs, "pin-bbv.py"),
@@ -131,3 +131,7 @@ rule bbv:
         + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
         '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
         'touch {output.stamp}'
+
+def simpoint_translation_bbv_dir(w):
+    return os.path.dirname(checkpoints.simpoint_translation_bbv.get(**w).output.stamp)
+
