@@ -26,19 +26,20 @@ for path in cpt_paths:
     cptid = cpt_name.split(".")[1]
     chunks.append((input, cptid))
 
-cptdir = f"{args.dir}/${{PINCPU_CHUNK_INPUT}}"
-expdir = f"/pincpu/bench-cpu2017/{bench}/chunk/{size}/{sw}/exp/{hw}/${{PINCPU_CHUNK_INPUT}}/${{PINCPU_CHUNK_INDEX}}"
+cptdir = f"{args.dir}"
+expdir = f"/pincpu/bench-cpu2017/{bench}/chunk/{size}/{sw}/exp/{hw}"
 hwconf = hwconfs[args.hw]
 sim = hwconf.sim
 script_opts = " ".join(hwconf.script_opts)
 exe = f"/pincpu/bench-cpu2017/{bench}/bin/{sw}/exe"
+
+entrypoint = f"/pincpu/bench-cpu2017/chunk-run-entrypoint.py --expdir={expdir} --cptdir={cptdir} --sim={sim} --input=${{PINCPU_CHUNK_INPUT}} --index=${{PINCPU_CHUNK_INDEX}} --script-opts={script_opts} --exe={exe}"
 
 def make_environment(input, cptid):
     return {
         "variables": {
             "PINCPU_CHUNK_INPUT": input,
             "PINCPU_CHUNK_INDEX": cptid,
-            "PINCPU_CHUNK_INDEX_PLUS_1": str(int(cptid) + 1),
         }
     }
 
@@ -57,7 +58,8 @@ d = {
                     {
                         "container": {
                             "imageUri": "gcr.io/pincpu/pincpu",
-                            "entrypoint": f"mount -o nolock 10.103.56.106:/pincpu /pincpu && rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size=1GiB --checkpoint-dir={cptdir} --checkpoint-restore=${{PINCPU_CHUNK_INDEX_PLUS_1}} --restore-simpoint-checkpoint {script_opts} -- {exe}",
+                            "entrypoint": entrypoint,
+                            # "entrypoint": f"mount -o nolock 10.103.56.106:/pincpu /pincpu && rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size=1GiB --checkpoint-dir={cptdir} --checkpoint-restore=${{PINCPU_CHUNK_INDEX_PLUS_1}} --restore-simpoint-checkpoint {script_opts} -- {exe}",
                             "volumes": [],
                         },
                     }
@@ -73,7 +75,7 @@ d = {
                 "policy": {
                     "provisioningModel": "SPOT",
                     "machineType": "e2-medium",
-                }
+                },
             }
         ]
     },
