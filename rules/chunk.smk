@@ -1,3 +1,6 @@
+chunk_interval = 2000000000
+chunk_warmup   =  500000000
+
 checkpoint chunk:
     input:
         gem5 = lambda w: os.path.abspath("../gem5/pincpu/build/X86/gem5.opt"),
@@ -9,7 +12,7 @@ checkpoint chunk:
         # TODO: This should be unified, get_script_opts(w).
         build = "{bench}/bin/{sw}",
         outdir = "{bench}/chunk/{size}/{sw}/cpt",
-        script_opts = "", # TODO: Remove.
+        script_opts = f"--interval={chunk_interval} --warmup={chunk_warmup}", # TODO: Remove.
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
