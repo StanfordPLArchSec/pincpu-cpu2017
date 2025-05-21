@@ -51,7 +51,20 @@ def get_checkpoints(wildcards):
         if re.match(r"cpt.\d+", cptname):
             res.append(path)
     return res
-    
+
+rule chunk_manifest:
+    input: "{bench}/chunk/{size}/{sw}/cpt/stamp.txt"
+    output: "{bench}/chunk/{size}/{sw}/cpt/manifest.txt"
+    run:
+        chunks = []
+        for cptdir in glob.glob(f"{os.path.dirname(input[0])}/*/cpt.[0-9]*"):
+            workload, cptname = cptdir.split("/")[-2:]
+            workload = int(workload)
+            cptid = int(cptname.split(".")[1])
+            chunks.append((workload, cptid))
+        with open(output[0], "wt") as f:
+            for workload, cptid in chunks:
+                print(workload, cptid, file=f)
 
 rule chunk_run:
     input:
