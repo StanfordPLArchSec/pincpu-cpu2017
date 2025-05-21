@@ -85,7 +85,7 @@ d = {
             {
                 "policy": {
                     "provisioningModel": "SPOT",
-                    "machineType": "e2-medium",
+                    "machineType": "c2d-highcpu-16",
                 },
             }
         ]
