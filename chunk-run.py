@@ -33,7 +33,7 @@ sim = hwconf.sim
 script_opts = " ".join(hwconf.script_opts)
 exe = f"/pincpu/bench-cpu2017/{bench}/bin/{sw}/exe"
 
-entrypoint = f"/pincpu/bench-cpu2017/chunk-run-entrypoint.py --expdir={expdir} --cptdir={cptdir} --sim={sim} --input=${{PINCPU_CHUNK_INPUT}} --index=${{PINCPU_CHUNK_INDEX}} --script-opts={script_opts} --exe={exe}"
+command = f"/pincpu/bench-cpu2017/chunk-run-entrypoint.py --expdir={expdir} --cptdir={cptdir} --sim={sim} --input=${{PINCPU_CHUNK_INPUT}} --index=${{PINCPU_CHUNK_INDEX}} '--script-opts={script_opts}' --exe={exe}"
 
 def make_environment(input, cptid):
     return {
@@ -58,13 +58,24 @@ d = {
                     {
                         "container": {
                             "imageUri": "gcr.io/pincpu/pincpu",
-                            "entrypoint": entrypoint,
-                            # "entrypoint": f"mount -o nolock 10.103.56.106:/pincpu /pincpu && rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size=1GiB --checkpoint-dir={cptdir} --checkpoint-restore=${{PINCPU_CHUNK_INDEX_PLUS_1}} --restore-simpoint-checkpoint {script_opts} -- {exe}",
-                            "volumes": [],
+                            "entrypoint": "/bin/sh",
+                            "commands": [
+                                "-c",
+                                f"{command}", # TODO: Convert to regular command and access env variables from within runscript.
+                            ],
+                            "volumes" : ["/home/nmosier/pincpu:/pincpu"],
                         },
                     }
                 ],
-                "volumes": [],
+                "volumes": [
+                    {
+                        "nfs": {
+                            "server": "10.103.56.106",
+                            "remotePath": "/pincpu",
+                        },
+                        "mountPath": "/home/nmosier/pincpu",
+                    }
+                ],
             },
             "taskEnvironments": [make_environment(input, cptid) for input, cptid in chunks],
         }
