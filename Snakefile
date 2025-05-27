@@ -240,4 +240,7 @@ rule o3:
 include: "rules/chunk.smk"
 include: "rules/simpoint-legacy.smk"
 include: "rules/simpoint-translation.smk"
+include: "rules/bbtrace.smk"
 include: "rules/traceval.smk" # Trace validation.
+include: "rules/bbhist.smk"
+include: "rules/locmap.smk"
