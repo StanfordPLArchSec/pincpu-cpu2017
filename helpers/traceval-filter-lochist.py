@@ -55,20 +55,23 @@ def loctrace(bbtrace_path, bbhist_path, locmap_path):
             for inst in insts:
                 if inst in locmap:
                     loc = locmap[inst]
-                    yield loc
+
+                    # Only return locations that are in the lochist.
+                    if loc in lochist:
+                        yield loc
 
 
 # Iterate over location traces, eliminating any locations from
 # the location histogram that aren't in the right position.
 loc_gens = map(loctrace, args.bbtraces, args.bbhists, args.locmaps)
 
+# print([len(list(x)) for x in loc_gens], file=sys.stderr)
+
 for locs in zip(*loc_gens, strict=True):
-    if subset(locs, lochist) and all_equal(locs):
-        pass
-    else:
-        for loc in locs:
-            if loc in lochist:
-                del lochist[loc]
+    assert subset(locs, lochist)
+    if not all_equal(locs):
+        for loc in set(locs):
+            del lochist[loc]
 
 for loc, count in lochist.items():
     print(count, loc)
