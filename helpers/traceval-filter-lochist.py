@@ -11,6 +11,14 @@ parser.add_argument("--bbhists", nargs="+")
 parser.add_argument("--locmaps", nargs="+")
 args = parser.parse_args()
 
+def all_equal(l):
+    return all(x == y for x, y in zip(l[:-1], l[1:], strict=True))
+
+def subset(a, b):
+    return all(x in b for x in a)
+
+assert all_equal([len(args.bbtraces), len(args.bbhists), len(args.locmaps)])
+
 # Parse the lochist from stdin.
 lochist = dict()
 for line in sys.stdin:
@@ -35,18 +43,32 @@ def loctrace(bbtrace_path, bbhist_path, locmap_path):
             inst, loc = line.split()
             locmap[inst] = loc
 
+
     with gzip.open(bbtrace_path, "rb") as f:
-        block = int.from_bytes(f.read(4), byteorder="little")
-        insts = block_to_insts[block]
-        for inst in insts:
-            if inst in locmap:
-                loc = locmap[inst]
-                yield loc
+        while True:
+            block_hash = f.read(4)
+            if not block_hash:
+                break
+            assert len(block_hash) == 4
+            block = int.from_bytes(block_hash, byteorder="little")
+            insts = block_to_insts[block]
+            for inst in insts:
+                if inst in locmap:
+                    loc = locmap[inst]
+                    yield loc
+
 
 # Iterate over location traces, eliminating any locations from
 # the location histogram that aren't in the right position.
 loc_gens = map(loctrace, args.bbtraces, args.bbhists, args.locmaps)
-for locs in zip(*loc_gens):
-    pass
 
-exit(1)
+for locs in zip(*loc_gens, strict=True):
+    if subset(locs, lochist) and all_equal(locs):
+        pass
+    else:
+        for loc in locs:
+            if loc in lochist:
+                del lochist[loc]
+
+for loc, count in lochist.items():
+    print(count, loc)
