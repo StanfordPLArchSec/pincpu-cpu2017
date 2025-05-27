@@ -37,20 +37,7 @@ def list_group(name):
     else:
         return groups[name]
 
-hwconfs = {
-    "unsafe": types.SimpleNamespace(
-        sim = "base",
-        script_opts = [],
-    ),
-    "stt": types.SimpleNamespace(
-        sim = "stt",
-        script_opts = [
-            "--stt",
-            "--implicit-channel=Lazy",
-            "--speculation-model=Ctrl",
-        ],
-    ),
-}
+from hwconfs import hwconfs
 
 include: "rules/cpu2017.smk"
 
