@@ -1,13 +1,14 @@
 # TODO: Rename with prefix?
+# TODO: Move to generic file, like bbhist.smk.
 checkpoint bbhist:
     input:
         gem5 = gem5_pin_exe,
         script = os.path.join(gem5_pin_configs, "pin-bbhist.py"),
         exe = "{bench}/bin/{sw}/exe",
     output:
-        stamp = "{bench}/simpoint-translation/{size}/{sw}/{sw}/bbhist/stamp.txt"
+        stamp = "{bench}/{type}/{size}/{sw}/{sw}/bbhist/stamp.txt"
     params:
-        outdir = "{bench}/simpoint-translation/{size}/{sw}/{sw}/bbhist",
+        outdir = "{bench}/{type}/{size}/{sw}/{sw}/bbhist",
         build = "{bench}/bin/{sw}",
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
@@ -43,7 +44,7 @@ def get_inputs(wildcards):
 # TODO: For release, can combine these all into one step.
 rule instlist:
     input:
-        bbhist = get_bbhist,
+        bbhist = lambda w: get_bbhist(types.SimpleNamespace(**w, type="simpoint-translation")),
         script = "helpers/instlist.py",
     output:
         "{bench}/simpoint-translation/{size}/{sw}/{sw}/instlist.{input}.txt"
