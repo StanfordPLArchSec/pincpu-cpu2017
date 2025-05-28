@@ -2,9 +2,7 @@
 
 import argparse
 import sys
-import gzip
-import xxhash
-from traceval_util import loctrace
+from traceval_util import loctrace, parse_lochist
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--bbtraces", nargs="+")
@@ -21,12 +19,7 @@ def subset(a, b):
 assert all_equal([len(args.bbtraces), len(args.bbhists), len(args.locmaps)])
 
 # Parse the lochist from stdin.
-lochist = dict()
-for line in sys.stdin:
-    count, loc = line.split()
-    lochist[loc] = count
-
-
+lochist = parse_lochist(sys.stdin)
 
 # Iterate over location traces, eliminating any locations from
 # the location histogram that aren't in the right position.
