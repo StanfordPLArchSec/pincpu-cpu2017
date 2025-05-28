@@ -16,20 +16,25 @@ runcpu_run = os.path.abspath("wrap-runcpu-run")
 simpoint_exe = "../simpoint/bin/simpoint"
 num_simpoints = 100 # Effectively unlimited.
 
+compilers = ["base", "slh", "retpoline"]
+groups = {
+    "main": ["base", "slh", "retpoline"],
+}
+
+def make_list_regex(l):
+    body = "|".join(l)
+    return f"({body})"
+
 wildcard_constraints:
     bench = r"6[0-9][0-9]\.[0-9a-zA-Z]+_s",
     input = r"[0-9]",
-    sw = "[a-z]+",
-    group = "[a-z]+",
+    sw = make_list_regex(compilers),
+    group = make_list_regex(groups.keys()),
     size = "(test|train|ref)",
     cptid = "[0-9]+",
     hwconf = "[a-z]+",
     type = "[a-z-]+",
 
-compilers = ["base", "slh", "retpoline"]
-groups = {
-    "main": ["base", "slh", "retpoline"],
-}
     
 def list_group(name):
     if name in compilers:
@@ -244,3 +249,5 @@ include: "rules/bbtrace.smk"
 include: "rules/traceval.smk" # Trace validation.
 include: "rules/bbhist.smk"
 include: "rules/locmap.smk"
+include: "rules/lochist.smk"
+include: "rules/localign.smk"
