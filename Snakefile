@@ -34,6 +34,8 @@ wildcard_constraints:
     cptid = "[0-9]+",
     hwconf = "[a-z]+",
     type = "[a-z-]+",
+    # An arbitrary suffix.
+    suffix = "[-a-z]*",
 
     
 def list_group(name):
