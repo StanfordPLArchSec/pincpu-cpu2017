@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import collections
 
 parser = argparse.ArgumentParser()
 parser.add_argument("ref")
@@ -22,12 +23,14 @@ def generator(ref_it, exp_it):
     exp_chunk = []
     ref_end = next(ref_it)
     ref_begin = [0] * len(ref_end)
+    exp_prev = 0
     for exp in exp_it:
         assert exp[0] >= ref_begin[0]
         assert exp[0] <= ref_end[0]
         if exp[0] == ref_end[0]:
             # Flush+yield the chunk.
-            yield ref_begin, ref_end, exp_chunk
+            weight = exp[0] - exp_prev
+            yield ref_begin, ref_end, exp_chunk, weight
             exp_chunk = []
             ref_begin = ref_end
             try:
@@ -35,6 +38,7 @@ def generator(ref_it, exp_it):
             except StopIteration:
                 return
         exp_chunk.append(exp)
+        exp_prev = exp[0]
     assert len(exp_chunk) == 0
 
 def compute_error(exp, ref_begin, ref_end):
@@ -45,7 +49,8 @@ gen = generator(iter(generate_tuples(args.ref)),
 total_error = None
 max_error = None
 total_insts = None
-for ref_begin, ref_end, exp_chunk in gen:
+
+for ref_begin, ref_end, exp_chunk, weight in gen:
     # Compute error.
     errors = []
     for exp in exp_chunk:
@@ -70,6 +75,7 @@ for ref_begin, ref_end, exp_chunk in gen:
     total_insts = ref_end[0]
 
 mean_error = [total_err / total_insts for total_err in total_error]
+
 print(f"max error: {max_error}", file=sys.stderr)
 print(f"total error: {total_error}", file=sys.stderr)
 print(f"mean error: {mean_error}", file=sys.stderr)
