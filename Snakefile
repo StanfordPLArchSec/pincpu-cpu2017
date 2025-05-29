@@ -185,7 +185,7 @@ checkpoint build_cpu2017_bench:
         # TODO: Might be able to use monitor_specrun_wrapper?
         "pushd {params.cpu2017} >/dev/null && source shrc && popd >/dev/null && "
         + runcpu_build + " --config=pincpu-{wildcards.sw} --tune=base --action=build --output_root=$PWD/{params.build} {wildcards.bench} && "
-        "[ -f {params.exe} ] && [ -x {params.exe} ] && ln -sf {params.exe} {output.exe}"
+        "[ -f {params.exe} ] && [ -x {params.exe} ] && ln -f {params.exe} {output.exe}"
 
 rule valgrind:
     input:
