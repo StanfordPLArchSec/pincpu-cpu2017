@@ -36,7 +36,7 @@ for cptdir in glob.glob(f"{args.dir}/**/cpt.[0-9]*/m5.cpt", recursive=True):
         # Build command.
         expdir = f"{bench}/chunk/{size}/{sw}/exp/{hw}/{input}/{cptid}"
         cptdir = f"{bench}/chunk/{size}/{sw}/cpt/{input}"
-        cmd = f"rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{hwconf.sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{hwconf.sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size=1GiB --checkpoint-dir={cptdir} --checkpoint-restore={cptid+1} --restore-simpoint-checkpoint {script_opts} -- {exe}"
+        cmd = f"cd /pincpu/bench-cpu2017 && rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{hwconf.sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{hwconf.sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size=1GiB --checkpoint-dir={cptdir} --checkpoint-restore={cptid+1} --restore-simpoint-checkpoint {script_opts} -- {exe}"
         cmds.append(cmd)
 
 with open(args.output, "wt") as f:

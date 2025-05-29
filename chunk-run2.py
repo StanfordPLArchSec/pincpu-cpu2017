@@ -12,23 +12,28 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--manifest", required=True, type=os.path.abspath)
 parser.add_argument("--base", required=True, type=int)
 parser.add_argument("--count", "-n", required=True, type=int)
+parser.add_argument("--parallelism", "-j", type=int, default=0)
 args = parser.parse_args()
 
+if args.parallelism == 0:
+    args.parallelism = args.count
+
 d = {
-    "name": "projects/pincpu/locations/us-central1/jobs/test-chunk-run",
+    "name": "projects/soe-pincpu/locations/us-central1/jobs/test-chunk-run",
     "taskGroups": [
         {
             "taskCount": args.count,
-            "parallelism": args.count,
+            "parallelism": args.parallelism,
             "taskSpec": {
                 "computeResource": {
                     "cpuMilli": "1000",
-                    "memoryMib": "1024",
+                    "memoryMib": "4096",
                 },
+                "maxRetryCount": 3,
                 "runnables": [
                     {
                         "container": {
-                            "imageUri": "gcr.io/pincpu/pincpu",
+                            "imageUri": "gcr.io/soe-pincpu/pincpu",
                             "entrypoint": "/bin/sh",
                             "commands": [
                                 "-c",
@@ -42,7 +47,7 @@ d = {
                 "volumes": [
                     {
                         "nfs": {
-                            "server": "10.103.56.106",
+                            "server": "172.25.91.250",
                             "remotePath": "/pincpu",
                         },
                         "mountPath": "/home/nmosier/pincpu",
@@ -56,7 +61,6 @@ d = {
             {
                 "policy": {
                     "provisioningModel": "SPOT",
-                    "machineType": "c2d-highcpu-16",
                 },
             }
         ]

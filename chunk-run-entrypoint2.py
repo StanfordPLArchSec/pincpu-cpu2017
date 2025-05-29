@@ -3,6 +3,7 @@
 import argparse
 import subprocess
 import os
+import json
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--manifest", required=True, type=os.path.abspath)
