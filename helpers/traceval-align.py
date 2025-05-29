@@ -30,9 +30,4 @@ gens = [
 ]
 
 for l in zip(*gens, strict=True):
-    loc = l[0][1]
-    for _, loc2 in l[1:]:
-        if loc != loc2:
-            # print(loc, loc2, file=sys.stderr)
-            pass
     print(*[n for n, _ in l])
