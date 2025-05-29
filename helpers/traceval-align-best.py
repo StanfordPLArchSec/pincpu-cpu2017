@@ -8,6 +8,7 @@ import edlib
 from traceval_util import parse_lochist, instloctrace
 import disasm
 import re
+import util
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--bbtraces", nargs="+")
@@ -75,12 +76,16 @@ def cigar_expander(cigar):
             yield opcode
     
 
-def match_generator(ref, exp, cigar):
+# The generated sequence contains None.
+def match_generator_unfiltered(ref, exp, cigar):
+    if cigar is None:
+        for ref_i in ref:
+            yield ref_i, None
+        return
+
     # NOTE: For now, we only want to include positions that are matches for everyone...
     ref_it = iter(ref)
     exp_it = iter(exp)
-    if cigar is None:
-        return
     for op in cigar_expander(cigar):
         if op == "=":
             yield next(ref_it), next(exp_it)
@@ -89,26 +94,52 @@ def match_generator(ref, exp, cigar):
         elif op == "D":
             yield None, next(exp_it)
         elif op == "X":
-            yield None, None
-        
+            yield next(ref_it), next(exp_it)
+    try:
+        next(ref_it)
+    except StopIteration:
+        return
+    assert False, "ref_it wasn't empty!"
+
+def match_generator(ref, exp, cigar):
+    return filter(lambda t: t[0], match_generator_unfiltered(ref, exp, cigar))
 
 for blocks in zip(*gens, strict=True):
+    ref_block = blocks[0]
+
     # Is this an anchor, i.e., are the blocks of each size 1 and
     # have locs?
     if all(len(block) == 1 and block[0][2] for block in blocks):
-        print(*[block[0][0] for block in blocks])
+        tokens = []
+        for block, in blocks:
+            addr, count, _ = block
+            tokens.extend([addr, count])
+        print(*tokens)
+        continue
+
+    # If the reference block is empty, then skip.
+    if len(ref_block) == 0:
         continue
 
     # Otherwise, perform optimal subalignment using edlib.
     opcodes = list(map(get_opcodes_for_block, blocks, disasms))
     ref_opcode_l = opcodes[0]
-    ref_block = blocks[0]
+    match_gens = []
     for exp_opcode_l, exp_block in zip(opcodes[1:], blocks[1:]):
         subalign = edlib.align(ref_opcode_l, exp_opcode_l, task="path")
+        cigar = subalign["cigar"]
+        match_gens.append(match_generator(ref_block, exp_block, cigar))
 
-        # Extract the matches.
-        for ref_inst, exp_inst in match_generator(ref_block, exp_block, subalign["cigar"]):
-            print(ref_inst, exp_inst)
+    for matches in zip(*match_gens, strict=True):
+        # Only consider ones where we match (or mismatch) all of them.
+        assert util.all_equal(map(lambda x: x[0], matches))
+        matches = [matches[0][0]] + [x[1] for x in matches]
+        if not all(matches):
+            continue
+        tokens = []
+        for addr, count, _ in matches:
+            tokens.extend([addr, count])
+        print(*tokens)
 
 exit(1)
 
