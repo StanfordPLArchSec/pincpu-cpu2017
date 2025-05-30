@@ -7,67 +7,38 @@ import collections
 parser = argparse.ArgumentParser()
 parser.add_argument("ref")
 parser.add_argument("exp")
-parser.add_argument("--errhist")
 parser.add_argument("--errtrace")
+parser.add_argument("--errhist")
 args = parser.parse_args()
 
-# NOTE: ref is always a subsequence of exp, colinear in locations.
-#       exp is generally not colinear in locations.
-#       This script is trying to bound the error introduced by the
-#       non-colinearity of exp.
-
-def generate_tuples(path):
+# Given an n-way alignment, generate the sequence of
+# dynamic instruction count n-tuples.
+def stream_align_counts(path):
     with open(path) as f:
         for line in f:
-            yield [int(x) for x in line.split()]
+            yield list(map(int, line.split()[1::2]))
 
-def generator(ref_it, exp_it):
-    exp_chunk = []
+
+def stream_weighted_ref_bounded_exp(ref_path, exp_path):
+    ref_it = stream_align_counts(ref_path)
+    exp_it = stream_align_counts(exp_path)
     ref_end = next(ref_it)
     ref_begin = [0] * len(ref_end)
     exp_prev = 0
     for exp in exp_it:
-        assert exp[0] >= ref_begin[0]
-        assert exp[0] <= ref_end[0]
-        if exp[0] == ref_end[0]:
-            # Flush+yield the chunk.
-            weight = exp[0] - exp_prev
-            yield ref_begin, ref_end, exp_chunk, weight
-            exp_chunk = []
+        # Shift the reference interval if needed.
+        while exp[0] > ref_end[0]:
             ref_begin = ref_end
             try:
                 ref_end = next(ref_it)
             except StopIteration:
                 return
-        exp_chunk.append(exp)
-        exp_prev = exp[0]
-    assert len(exp_chunk) == 0
-
-def generator2(ref_it, exp_it):
-    ref_end = next(ref_it)
-    ref_begin = [0] * len(ref_end)
-    exp_prev = 0
-    for exp in exp_it:
-        assert exp[0] >= ref_begin[0]
-        assert exp[0] <= ref_end[0]
-        assert exp[0] > exp_prev
+        assert ref_begin[0] <= exp[0] <= ref_end[0]
         weight = exp[0] - exp_prev
         exp_prev = exp[0]
         yield ref_begin, ref_end, exp, weight
-        if exp[0] == ref_end[0]:
-            # Shift the window.
-            ref_begin = ref_end
-            try:
-                ref_end = next(ref_it)
-            except StopIteration:
-                return
-            
 
-def compute_error(exp, ref_begin, ref_end):
-    return max(abs(exp - ref_begin), abs(exp - ref_end))
 
-gen = generator2(iter(generate_tuples(args.ref)),
-                 iter(generate_tuples(args.exp)))
 total_error = None
 max_error = None
 total_insts = None
@@ -97,7 +68,8 @@ def get_error_hists(n):
 if args.errtrace:
     errtrace_f = open(args.errtrace, "wt")
 
-for ref_begin, ref_end, exp, weight in gen:
+for ref_begin, ref_end, exp, weight in \
+        stream_weighted_ref_bounded_exp(args.ref, args.exp):
     print(ref_begin, ref_end, exp, weight,
           file=sys.stderr)
 
