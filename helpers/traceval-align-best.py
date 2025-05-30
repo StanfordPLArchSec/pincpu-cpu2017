@@ -140,22 +140,3 @@ for blocks in zip(*gens, strict=True):
         for addr, count, _ in matches:
             tokens.extend([addr, count])
         print(*tokens)
-
-exit(1)
-
-def loctrace_with_instcount(lochist, bbtrace, bbhist, locmap):
-    inst_count = 0
-    for inst, loc in instloctrace(lochist, bbtrace, bbhist, locmap):
-        if loc:
-            yield inst_count, loc
-        inst_count += 1
-    yield inst_count, "<exit>"
-    
-gens = [
-    loctrace_with_instcount(lochist, bbtrace, bbhist, locmap) \
-    for bbtrace, bbhist, locmap in \
-    zip(args.bbtraces, args.bbhists, args.locmaps, strict=True)
-]
-
-for l in zip(*gens, strict=True):
-    print(*[n for n, _ in l])

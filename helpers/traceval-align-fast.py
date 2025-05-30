@@ -19,9 +19,9 @@ def loctrace_with_instcount(lochist, bbtrace, bbhist, locmap):
     inst_count = 0
     for inst, loc in instloctrace(lochist, bbtrace, bbhist, locmap):
         if loc:
-            yield inst_count, loc
+            yield inst, inst_count
         inst_count += 1
-    yield inst_count, "<exit>"
+    yield inst, inst_count
     
 gens = [
     loctrace_with_instcount(lochist, bbtrace, bbhist, locmap) \
@@ -30,4 +30,7 @@ gens = [
 ]
 
 for l in zip(*gens, strict=True):
-    print(*[n for n, _ in l])
+    tokens = []
+    for x in l:
+        tokens.extend(x)
+    print(*tokens)
