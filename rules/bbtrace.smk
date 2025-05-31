@@ -4,9 +4,9 @@ checkpoint bbtrace:
         script = os.path.join(gem5_pin_configs, "pin.py"),
         exe = "{bench}/bin/{sw}/exe",
     output:
-        stamp = "{bench}/{type}/{size}/{sw}/{sw}/bbtrace/stamp.txt"
+        stamp = "{bench}/profile/{size}/{sw}/bbtrace/stamp.txt"
     params:
-        outdir = "{bench}/{type}/{size}/{sw}/{sw}/bbtrace",
+        outdir = "{bench}/profile/{size}/{sw}/bbtrace",
         build = "{bench}/bin/{sw}",
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
@@ -24,3 +24,9 @@ checkpoint bbtrace:
         '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
         'gzip {params.outdir}/*/bbtrace.txt && '
         'touch {output.stamp}'
+
+# TODO: Unify with other functions doing similar tasks. Lots of repeated code.
+def get_bbtrace(w, **kwargs):
+    outdir = os.path.dirname(checkpoints.bbtrace.get(**w, **kwargs).output.stamp)
+    bbtrace, = expand(outdir + "/{input}/bbtrace.txt.gz", input=w.input)
+    return bbtrace

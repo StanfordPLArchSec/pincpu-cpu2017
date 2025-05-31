@@ -25,7 +25,6 @@ checkpoint bbhist:
         + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
         '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
         'touch {output.stamp}'
-
 # TODO: Rename.
 def get_bbhist(wildcards):
     outdir = os.path.dirname(checkpoints.bbhist.get(**wildcards).output.stamp)
@@ -41,7 +40,7 @@ def get_inputs(wildcards):
         inputs.append(os.path.basename(os.path.dirname(bbhist)))
     return inputs
 
-# TODO: For release, can combine these all into one step.
+# TODO: Replace these with locmap in locmap.smk.
 rule instlist:
     input:
         bbhist = lambda w: get_bbhist(types.SimpleNamespace(**w, type="simpoint-translation")),

@@ -3,6 +3,7 @@ import sys
 import glob
 import types
 import humanfriendly
+import rules.cpu2017
 
 container: "../docker/pincpu.sif"
 
@@ -186,8 +187,9 @@ checkpoint build_cpu2017_bench:
         mem = compile_mem
     shell:
         # TODO: Might be able to use monitor_specrun_wrapper?
+        "mkdir -p {params.build} && "
         "pushd {params.cpu2017} >/dev/null && source shrc && popd >/dev/null && "
-        + runcpu_build + " --config=pincpu-{wildcards.sw} --tune=base --action=build --output_root=$PWD/{params.build} {wildcards.bench} && "
+        + runcpu_build + " --config=pincpu-{wildcards.sw} --tune=base --action=build --output_root=$PWD/{params.build} {wildcards.bench} > {params.build}/specout.txt 2> {params.build}/specerr.txt && "
         "[ -f {params.exe} ] && [ -x {params.exe} ] && ln -f {params.exe} {output.exe}"
 
 rule valgrind:
