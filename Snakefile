@@ -82,9 +82,12 @@ resources_ref = {
         "mem": "16GiB",
         "hostmem": "24GiB",
     },
+    "620.omnetpp_s": {
+        "hostmem": "8GiB",
+    },
     "631.deepsjeng_s": {
         "mem": "8GiB",
-        "hostmem": "20GiB",
+        "hostmem": "24GiB",
     },
     "657.xz_s": {
         "mem": "32GiB",
