@@ -131,7 +131,12 @@ resources_ref = {
     },
 }
 
-resources_test = {}
+resources_test = {
+    "631.deepsjeng_s": {
+        "mem": "8GiB",
+        "hostmem": "16GiB",
+    },
+}
 
 resources = {
     "train": resources_train,

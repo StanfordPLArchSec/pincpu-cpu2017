@@ -23,7 +23,7 @@ rule group_lochist_filtered:
         lochist  = "{bench}/profile/{size}/{group}/lochist/{input}/lochist.txt",
         locmaps  = lambda w: expand("{bench}/profile/{size}/{sw}/locmap/{input}/locmap.txt",   **w, sw=list_group(w.group)),
         bbtraces = lambda w: [get_bbtrace(w, sw=sw) for sw in list_group(w.group)],
-        bbhists  = lambda w: expand("{bench}/profile/{size}/{sw}/bbhist/{input}/bbhist.txt", **w, sw=list_group(w.group)),
+        bbhists  = lambda w: [get_bbhist__(**w, sw=sw) for sw in list_group(w.group)],
         script   = "helpers/traceval-filter-lochist.py",
     output:
         "{bench}/profile/{size}/{group}/lochist/{input}/lochist-filtered.txt",
