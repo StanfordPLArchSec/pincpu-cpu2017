@@ -11,10 +11,11 @@ rule kvm:
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+        script_opts = "",
     resources:
         runtime = "2d",
         mem = lambda w: get_resources(w).hostmem,
     shell:
-        shell_run_bench_gem5(runcpu_run, script_opts="--cpu-type=X86KvmCPU")
+        rules.cpu2017.shell_run_bench_gem5(runcpu_run, script_opts="--cpu-type=X86KvmCPU")
 
                              
