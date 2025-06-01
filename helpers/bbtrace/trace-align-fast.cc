@@ -20,8 +20,15 @@
 #include <xxhash.h>          // for XXH32
 #include <gperftools/profiler.h>
 #include <cassert>
+#include <absl/container/flat_hash_map.h>
 
 using Addr = uint64_t;
+
+using Loc = uint32_t;
+Loc hashLoc(const std::string &s)
+{
+    return XXH32(s.data(), s.size(), 0);
+}
 
 // --------------------------------------------------------------------------------
 // Utility: split a comma‐separated string into a vector<string>
@@ -41,21 +48,20 @@ static std::vector<std::string> split_commas(const std::string& s) {
 // --------------------------------------------------------------------------------
 // parseLochist: read lines "count loc" → store each loc in an unordered_set.
 // --------------------------------------------------------------------------------
-static std::unordered_set<std::string> parseLochist(const std::string& path) {
+static std::unordered_set<Loc> parseLochist(const std::string& path) {
     std::ifstream in(path);
     if (!in) {
         throw std::runtime_error("Failed to open lochist file: " + path);
     }
-    std::unordered_set<std::string> lochist;
+    std::unordered_set<Loc> lochist;
     std::string line;
     while (std::getline(in, line)) {
         if (line.empty()) continue;
         std::istringstream iss(line);
         std::string count, loc;
         iss >> count >> loc;
-        if (!loc.empty()) {
-            lochist.insert(loc);
-        }
+        assert(!loc.empty());
+        lochist.insert(hashLoc(loc));
     }
     return lochist;
 }
@@ -63,13 +69,13 @@ static std::unordered_set<std::string> parseLochist(const std::string& path) {
 // --------------------------------------------------------------------------------
 // parseLocmap: read lines "inst loc" → map inst → loc string.
 // --------------------------------------------------------------------------------
-static std::unordered_map<Addr, std::string>
+static absl::flat_hash_map<Addr, Loc>
 parseLocmap(const std::string& path) {
     std::ifstream in(path);
     if (!in) {
         throw std::runtime_error("Failed to open locmap file: " + path);
     }
-    std::unordered_map<Addr, std::string> locmap;
+    absl::flat_hash_map<Addr, Loc> locmap;
     std::string line;
     while (std::getline(in, line)) {
         if (line.empty()) continue;
@@ -79,7 +85,7 @@ parseLocmap(const std::string& path) {
         iss >> std::hex >> inst >> loc;
         assert(inst);
         assert(!loc.empty());
-        locmap[inst] = loc;
+        locmap[inst] = hashLoc(loc);
     }
     return locmap;
 }
@@ -93,7 +99,7 @@ parseLocmap(const std::string& path) {
 std::generator<Addr>
 insttrace(const std::string& bbtrace_path, const std::string& bbhist_path) {
     // 1) Parse BB‐history file into a map: hash → vector<inst>
-    std::unordered_map<uint32_t, std::vector<Addr>> block_to_insts;
+    absl::flat_hash_map<uint32_t, std::vector<Addr>> block_to_insts;
     {
         std::ifstream in(bbhist_path);
         if (!in) {
@@ -154,8 +160,8 @@ insttrace(const std::string& bbtrace_path, const std::string& bbhist_path) {
 //      • Lookup locmap[inst] (if present) → loc.
 //      • If loc is in lochist, yield {inst, loc}, else yield {inst, nullopt}.
 // --------------------------------------------------------------------------------
-std::generator<std::pair<Addr, std::optional<std::string>>>
-instloctrace(const std::unordered_set<std::string>& lochist,
+std::generator<std::pair<Addr, std::optional<Loc>>>
+instloctrace(const std::unordered_set<Loc>& lochist,
              const std::string& bbtrace_path,
              const std::string& bbhist_path,
              const std::string& locmap_path)
@@ -163,8 +169,8 @@ instloctrace(const std::unordered_set<std::string>& lochist,
     auto locmap = parseLocmap(locmap_path);
 
     for (auto inst : insttrace(bbtrace_path, bbhist_path)) {
-        std::optional<std::string> loc_opt;
-        // HOT: This is where ~87% of the runtime is spent.
+        std::optional<Loc> loc_opt;
+        // HOT: This is where ~78% of the runtime is spent.
         auto it = locmap.find(inst);
         if (it != locmap.end()) {
             const auto& loc = it->second;
@@ -184,7 +190,7 @@ instloctrace(const std::unordered_set<std::string>& lochist,
 //  - After exhausting, assert inst_count>0 and yield {last_inst, inst_count}.
 // --------------------------------------------------------------------------------
 std::generator<std::pair<Addr, size_t>>
-loctrace_with_instcount(const std::unordered_set<std::string>& lochist,
+loctrace_with_instcount(const std::unordered_set<Loc>& lochist,
                         const std::string& bbtrace_path,
                         const std::string& bbhist_path,
                         const std::string& locmap_path)
