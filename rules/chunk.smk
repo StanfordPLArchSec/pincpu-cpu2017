@@ -1,5 +1,5 @@
-chunk_interval = 2000000000
-chunk_warmup   =  500000000
+chunk_interval = 2_000_000_000
+chunk_warmup   =  100_000_000
 
 checkpoint chunk:
     input:
@@ -20,14 +20,15 @@ checkpoint chunk:
         runtime = "2d",
         mem = lambda w: get_resources(w).hostmem,
     shell:
-        'rm -rf {params.outdir} && '
-        r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
-        'cd cpu2017 && source shrc && cd .. && '
-        r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
-        r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
-        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
-        '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
-        'touch {output.stamp}'
+        rules.cpu2017.shell_run_bench_gem5(runcpu_run)
+        # 'rm -rf {params.outdir} && '
+        # r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
+        # 'cd cpu2017 && source shrc && cd .. && '
+        # r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --max-stack-size={params.stack} --mem-size={params.sim_mem} {params.script_opts} -- \${{command}}" && '
+        # r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
+        # + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
+        # '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
+        # 'touch {output.stamp}'
 
 # TODO: Qualify name with 'chunk'.
 def get_checkpoint_dir(wildcards):
