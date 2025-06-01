@@ -21,6 +21,7 @@ def loctrace_with_instcount(lochist, bbtrace, bbhist, locmap):
         if loc:
             yield inst, inst_count
         inst_count += 1
+    assert inst_count > 0
     yield inst, inst_count
     
 gens = [

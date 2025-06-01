@@ -9,6 +9,7 @@ parser.add_argument("ref")
 parser.add_argument("exp")
 parser.add_argument("--errtrace")
 parser.add_argument("--errhist")
+parser.add_argument("--verbose", "-v", action="store_true")
 args = parser.parse_args()
 
 # Given an n-way alignment, generate the sequence of
@@ -70,11 +71,12 @@ if args.errtrace:
 
 for ref_begin, ref_end, exp, weight in \
         stream_weighted_ref_bounded_exp(args.ref, args.exp):
-    print(ref_begin, ref_end, exp, weight,
-          file=sys.stderr)
+    if args.verbose:
+        print(ref_begin, ref_end, exp, weight, file=sys.stderr)
 
     error = compute_error(ref_begin, ref_end, exp)
-    print(weight, error)
+    if args.verbose:
+        print(weight, error)
 
     if args.errtrace:
         print(exp[0], *error, file=errtrace_f)
@@ -121,7 +123,6 @@ if args.errhist:
         for err in keys:
             print(err, *[int(err * errhist[err] * total_insts) for errhist in error_hists], file=f)
         
-print(f"max error: {max_error}", file=sys.stderr)
-print(f"median error: {median_error}", file=sys.stderr)
-print(f"mean error: {mean_error}", file=sys.stderr)
-exit(1)
+print(f"max error: {max_error}")
+print(f"median error: {median_error}")
+print(f"mean error: {mean_error}")
