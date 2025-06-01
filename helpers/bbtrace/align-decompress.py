@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import itertools
 
 parser = argparse.ArgumentParser()
 args = parser.parse_args()
@@ -15,4 +16,7 @@ for line in sys.stdin:
     for i in range(len(delta_counts)):
         total_counts[i] += int(delta_counts[i])
 
-    print(*total_counts)
+    out = []
+    for total_count in total_counts:
+        out.extend(["?", total_count])
+    print(*out)
