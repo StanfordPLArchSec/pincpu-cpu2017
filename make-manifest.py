@@ -12,6 +12,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--output", "-o", required=True)
 parser.add_argument("--dir", "-d", required=True)
 parser.add_argument("--config", "-c", action="append", required=True)
+parser.add_argument("--sim-mem-size", required=True)
+parser.add_argument("--workload", required=True, type=int)
 args = parser.parse_args()
 
 # GOAL: Generate a vector of commands (starting with /usr/bin/time -vo ...).
@@ -23,7 +25,7 @@ for config in args.config:
 
 # Enumerate all checkpoints.
 cmds = []
-for cptdir in glob.glob(f"{args.dir}/**/cpt.[0-9]*/m5.cpt", recursive=True):
+for cptdir in glob.glob(f"{args.dir}/**/{args.workload}/cpt.[0-9]*/m5.cpt", recursive=True):
     bench, _, size, sw, _, input, cptname, _ = cptdir.split("/")
     input = int(input)
     _, cptid = cptname.split(".")
@@ -36,7 +38,7 @@ for cptdir in glob.glob(f"{args.dir}/**/cpt.[0-9]*/m5.cpt", recursive=True):
         # Build command.
         expdir = f"{bench}/chunk/{size}/{sw}/exp/{hw}/{input}/{cptid}"
         cptdir = f"{bench}/chunk/{size}/{sw}/cpt/{input}"
-        cmd = f"cd /pincpu/bench-cpu2017 && rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{hwconf.sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{hwconf.sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size=1GiB --checkpoint-dir={cptdir} --checkpoint-restore={cptid+1} --restore-simpoint-checkpoint {script_opts} -- {exe}"
+        cmd = f"cd /pincpu/bench-cpu2017 && rm -rf {expdir} && mkdir -p {expdir} && /usr/bin/time -vo {expdir}/time.txt -- /pincpu/gem5/{hwconf.sim}/build/X86/gem5.opt -re --silent-redirect --outdir={expdir} --debug-flag=Heartbeat --debug-file=dbgout.txt /pincpu/gem5/{hwconf.sim}/configs/deprecated/example/se.py --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size=8MiB --mem-size={args.sim_mem_size} --checkpoint-dir={cptdir} --checkpoint-restore={cptid+1} --restore-simpoint-checkpoint {script_opts} -- {exe}"
         cmds.append(cmd)
 
 with open(args.output, "wt") as f:
