@@ -22,22 +22,8 @@
 #include <cassert>
 #include <absl/container/flat_hash_map.h>
 
-#include "mmap_vector.hh"
+#include "tracelib.hh"
 
-using Addr = uint64_t;
-
-using Loc = uint32_t;
-Loc
-hashLoc(const std::string &s)
-{
-    return XXH32(s.data(), s.size(), 0);
-}
-
-uint32_t
-hashInst(Addr addr)
-{
-    return static_cast<uint32_t>(addr);
-}
 
 // --------------------------------------------------------------------------------
 // Utility: split a comma‐separated string into a vector<string>
@@ -55,62 +41,15 @@ static std::vector<std::string> split_commas(const std::string& s) {
 }
 
 // --------------------------------------------------------------------------------
-// parseLochist: read lines "count loc" → store each loc in an unordered_set.
-// --------------------------------------------------------------------------------
-static std::unordered_set<Loc> parseLochist(const std::string& path) {
-    std::ifstream in(path);
-    if (!in) {
-        throw std::runtime_error("Failed to open lochist file: " + path);
-    }
-    std::unordered_set<Loc> lochist;
-    std::string line;
-    while (std::getline(in, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        std::string count, loc;
-        iss >> count >> loc;
-        assert(!loc.empty());
-        lochist.insert(hashLoc(loc));
-    }
-    return lochist;
-}
-
-// --------------------------------------------------------------------------------
-// parseLocmap: read lines "inst loc" → map inst → loc string.
-// --------------------------------------------------------------------------------
-static mmap_vector<Loc>
-parseLocmap(const std::string& path) {
-    std::ifstream in(path);
-    if (!in) {
-        throw std::runtime_error("Failed to open locmap file: " + path);
-    }
-    mmap_vector<Loc> locmap(std::size_t(1) << 32);
-    std::string line;
-    while (std::getline(in, line)) {
-        if (line.empty()) continue;
-        std::istringstream iss(line);
-        Addr inst;
-        std::string loc;
-        iss >> std::hex >> inst >> loc;
-        assert(inst);
-        assert(!loc.empty());
-        inst = hashInst(inst);
-        assert(!locmap[inst]);
-        locmap[inst] = hashLoc(loc);
-    }
-    return locmap;
-}
-
-// --------------------------------------------------------------------------------
 // insttrace: generator<string>
 //  - Build a map from BB‐hash → vector<inst> by reading bbhist_path (plaintext).
 //  - Then open bbtrace_path (gzip) and read 4 bytes at a time (littleendian).
 //  - Look up that 32‐bit hash in block_to_insts, then co_yield each inst.
 // --------------------------------------------------------------------------------
-std::generator<Addr>
+std::generator<InstRef>
 insttrace(const std::string& bbtrace_path, const std::string& bbhist_path) {
     // 1) Parse BB‐history file into a map: hash → vector<inst>
-    absl::flat_hash_map<uint32_t, std::vector<Addr>> block_to_insts;
+    absl::flat_hash_map<uint32_t, std::vector<InstRef>> block_to_insts;
     {
         std::ifstream in(bbhist_path);
         if (!in) {
@@ -127,9 +66,9 @@ insttrace(const std::string& bbtrace_path, const std::string& bbhist_path) {
             if (block_to_insts.count(h)) {
                 throw std::runtime_error("Duplicate block hash detected in BB‐history: " + block);
             }
-            std::vector<Addr> block_int;
+            std::vector<InstRef> block_int;
             for (const std::string &inst : split_commas(block))
-                block_int.push_back(std::stoull(inst, nullptr, 16));
+                block_int.push_back(getInstRef(std::stoull(inst, nullptr, 16)));
             block_to_insts[h] = std::move(block_int);
         }
     }
@@ -171,8 +110,8 @@ insttrace(const std::string& bbtrace_path, const std::string& bbhist_path) {
 //      • Lookup locmap[inst] (if present) → loc.
 //      • If loc is in lochist, yield {inst, loc}, else yield {inst, nullopt}.
 // --------------------------------------------------------------------------------
-std::generator<std::pair<Addr, std::optional<Loc>>>
-instloctrace(const std::unordered_set<Loc>& lochist,
+std::generator<std::pair<InstRef, std::optional<LocRef>>>
+instloctrace(const LocSet &lochist,
              const std::string& bbtrace_path,
              const std::string& bbhist_path,
              const std::string& locmap_path)
@@ -180,9 +119,9 @@ instloctrace(const std::unordered_set<Loc>& lochist,
     auto locmap = parseLocmap(locmap_path);
 
     for (auto inst : insttrace(bbtrace_path, bbhist_path)) {
-        std::optional<Loc> loc_opt;
+        std::optional<LocRef> loc_opt;
         // HOT: This is where ~78% of the runtime is spent.
-        if (Loc loc = locmap[hashInst(inst)]) {
+        if (LocRef loc = locmap[inst]) {
             if (lochist.contains(loc)) {
                 loc_opt = loc;
             }
@@ -199,7 +138,7 @@ instloctrace(const std::unordered_set<Loc>& lochist,
 //  - After exhausting, assert inst_count>0 and yield {last_inst, inst_count}.
 // --------------------------------------------------------------------------------
 std::generator<std::pair<Addr, size_t>>
-loctrace_with_instcount(const std::unordered_set<Loc>& lochist,
+loctrace_with_instcount(const LocSet &lochist,
                         const std::string& bbtrace_path,
                         const std::string& bbhist_path,
                         const std::string& locmap_path)
@@ -207,7 +146,8 @@ loctrace_with_instcount(const std::unordered_set<Loc>& lochist,
     size_t inst_count = 0;
     Addr last_inst;
 
-    for (auto [inst, loc_opt] : instloctrace(lochist, bbtrace_path, bbhist_path, locmap_path)) {
+    for (auto [inst_ref, loc_opt] : instloctrace(lochist, bbtrace_path, bbhist_path, locmap_path)) {
+        const Addr inst = inst_ref->value;
         last_inst = inst;
         if (loc_opt.has_value()) {
             co_yield std::make_pair(inst, inst_count);
