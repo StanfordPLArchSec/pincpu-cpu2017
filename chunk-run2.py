@@ -8,12 +8,22 @@ import sys
 import re
 from hwconfs import hwconfs
 
+def parse_mem_mib(s):
+    m = re.match(r"(\d+)GiB", s)
+    assert m
+    return int(m.group(1)) * 1024
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--manifest", required=True, type=os.path.abspath)
-parser.add_argument("--base", required=True, type=int)
-parser.add_argument("--count", "-n", required=True, type=int)
+parser.add_argument("--base", type=int, default=0)
+parser.add_argument("--count", "-n", type=int, default=0)
 parser.add_argument("--parallelism", "-j", type=int, default=0)
+parser.add_argument("--hostmem", required=True, type=parse_mem_mib)
 args = parser.parse_args()
+
+if args.count == 0:
+    with open(args.manifest) as f:
+        args.count = len(json.load(f))
 
 if args.parallelism == 0:
     args.parallelism = args.count
@@ -27,7 +37,7 @@ d = {
             "taskSpec": {
                 "computeResource": {
                     "cpuMilli": "1000",
-                    "memoryMib": "4096",
+                    "memoryMib": str(args.hostmem),
                 },
                 "maxRetryCount": 3,
                 "runnables": [
