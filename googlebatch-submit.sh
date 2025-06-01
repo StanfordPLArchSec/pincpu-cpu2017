@@ -9,9 +9,6 @@ EOF
 }
 
 case $# in
-    0)
-	location=us-central1
-	;;
     1)
 	location="$1"
 	;;
