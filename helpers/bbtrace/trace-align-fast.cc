@@ -22,12 +22,21 @@
 #include <cassert>
 #include <absl/container/flat_hash_map.h>
 
+#include "mmap_vector.hh"
+
 using Addr = uint64_t;
 
 using Loc = uint32_t;
-Loc hashLoc(const std::string &s)
+Loc
+hashLoc(const std::string &s)
 {
     return XXH32(s.data(), s.size(), 0);
+}
+
+uint32_t
+hashInst(Addr addr)
+{
+    return static_cast<uint32_t>(addr);
 }
 
 // --------------------------------------------------------------------------------
@@ -69,13 +78,13 @@ static std::unordered_set<Loc> parseLochist(const std::string& path) {
 // --------------------------------------------------------------------------------
 // parseLocmap: read lines "inst loc" → map inst → loc string.
 // --------------------------------------------------------------------------------
-static absl::flat_hash_map<Addr, Loc>
+static mmap_vector<Loc>
 parseLocmap(const std::string& path) {
     std::ifstream in(path);
     if (!in) {
         throw std::runtime_error("Failed to open locmap file: " + path);
     }
-    absl::flat_hash_map<Addr, Loc> locmap;
+    mmap_vector<Loc> locmap(std::size_t(1) << 32);
     std::string line;
     while (std::getline(in, line)) {
         if (line.empty()) continue;
@@ -85,6 +94,8 @@ parseLocmap(const std::string& path) {
         iss >> std::hex >> inst >> loc;
         assert(inst);
         assert(!loc.empty());
+        inst = hashInst(inst);
+        assert(!locmap[inst]);
         locmap[inst] = hashLoc(loc);
     }
     return locmap;
@@ -171,9 +182,7 @@ instloctrace(const std::unordered_set<Loc>& lochist,
     for (auto inst : insttrace(bbtrace_path, bbhist_path)) {
         std::optional<Loc> loc_opt;
         // HOT: This is where ~78% of the runtime is spent.
-        auto it = locmap.find(inst);
-        if (it != locmap.end()) {
-            const auto& loc = it->second;
+        if (Loc loc = locmap[hashInst(inst)]) {
             if (lochist.contains(loc)) {
                 loc_opt = loc;
             }
