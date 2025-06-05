@@ -63,7 +63,7 @@ resources_train = {
     },
     "619.lbm_s": {
         "mem": "4GiB",
-        "hostmem": "8GiB",
+        "hostmem": "16GiB",
     },
     "621.wrf_s": {
         "stack": "1GiB",
