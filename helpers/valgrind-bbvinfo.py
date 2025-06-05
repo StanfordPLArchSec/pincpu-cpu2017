@@ -18,7 +18,7 @@ def process_line(line, f_out):
 
 def process_bbv(bbv_path):
     bbvinfo_path = bbv_path.replace("bbv.txt", "bbvinfo.txt")
-    with open(bbv_path) as f_in \
+    with open(bbv_path) as f_in, \
          open(bbvinfo_path, "wt") as f_out:
         for line in sys.stdin:
             if line.startswith("T"):
