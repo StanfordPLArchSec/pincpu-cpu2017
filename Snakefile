@@ -267,12 +267,13 @@ rule o3:
         'touch {output.stamp}'
 
 include: "rules/chunk.smk"
-include: "rules/simpoint-legacy.smk"
-include: "rules/simpoint-translation.smk"
 include: "rules/bbtrace.smk"
 include: "rules/traceval.smk" # Trace validation.
 include: "rules/bbhist.smk"
 include: "rules/locmap.smk"
 include: "rules/lochist.smk"
 include: "rules/localign.smk"
+include: "rules/waypoints.smk"
 include: "rules/kvm.smk"
+include: "rules/simpoint-legacy.smk"
+include: "rules/simpoint-translation.smk"
