@@ -12,6 +12,7 @@ checkpoint bbhist_:
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+        script_opts = "",
     resources:
         runtime = "2d",
         mem = lambda w: get_resources(w).hostmem,
