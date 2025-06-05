@@ -97,6 +97,7 @@ resources_ref = {
     "603.bwaves_s": {
         "mem": "16GiB",
         "hostmem": "24GiB",
+        "stack": "16GiB",
     },
     "607.cactuBSSN_s": {
         "mem": "16GiB",
@@ -126,7 +127,7 @@ resources_ref = {
     },
     "654.roms_s": {
         "mem": "16GiB",
-        "stack": "64MiB",
+        "stack": "1GiB",
         "hostmem": "20GiB",
     },
 }
@@ -140,7 +141,8 @@ resources_test = {
         "stack": "1GiB",
     },
     "619.lbm_s": {
-        "mem": "2GiB",
+        "mem": "4GiB",
+        "hostmem": "8GiB",
     },
     "621.wrf_s": {
         "stack": "1GiB",
