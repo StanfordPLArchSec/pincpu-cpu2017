@@ -15,11 +15,16 @@ addr2line = "../llvm/build/bin/llvm-addr2line"
 runcpu_build = os.path.abspath("wrap-runcpu-build")
 runcpu_run = os.path.abspath("wrap-runcpu-run")
 simpoint_exe = "../simpoint/bin/simpoint"
-num_simpoints = 100 # Effectively unlimited.
+num_simpoints = 1 # Effectively unlimited.
+interval = 50_000_000
+warmup = 10_000_000
 
 compilers = ["base", "slh", "retpoline"]
 groups = {
     "main": ["base", "slh", "retpoline"],
+    "base": ["base"],
+    "slh": ["slh"],
+    "retpoline": ["retpoline"],
 }
 
 def make_list_regex(l):
@@ -277,5 +282,6 @@ include: "rules/lochist.smk"
 include: "rules/localign.smk"
 include: "rules/waypoints.smk"
 include: "rules/kvm.smk"
+include: "rules/bbv.smk"
 include: "rules/simpoint-legacy.smk"
 include: "rules/simpoint-translation.smk"
