@@ -12,6 +12,7 @@ checkpoint bbhist_:
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+        script_opts = "",
     resources:
         runtime = "2d",
         mem = lambda w: get_resources(w).hostmem,
@@ -27,3 +28,8 @@ def get_bbhist__(**w):
 # TODO: Rename function to get_bbhist.
 def get_bbhist_(w):
     return get_bbhist__(**w)
+
+def get_inputs(w):
+    outdir = os.path.dirname(checkpoints.bbhist_.get(**w).output.stamp)
+    return list(filter(lambda subdir: re.match(r"\d+", subdir),
+                       os.listdir(outdir)))
