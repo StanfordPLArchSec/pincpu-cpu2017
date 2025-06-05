@@ -19,10 +19,20 @@ class mmap_vector
             err(EXIT_FAILURE, "mmap");
     }
 
+    mmap_vector(const mmap_vector &) = delete;
+
+    mmap_vector(mmap_vector &&o)
+    {
+        base = o.base;
+        len = o.len;
+        o.base = nullptr;
+    }
+
     ~mmap_vector()
     {
-        if (munmap(base, len) < 0)
-            err(EXIT_FAILURE, "munmap");
+        if (base)
+            if (munmap(base, len) < 0)
+                err(EXIT_FAILURE, "munmap");
     }
 
     T &
