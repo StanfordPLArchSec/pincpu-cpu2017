@@ -136,6 +136,18 @@ resources_test = {
         "mem": "8GiB",
         "hostmem": "16GiB",
     },
+    "603.bwaves_s": {
+        "stack": "1GiB",
+    },
+    "619.lbm_s": {
+        "mem": "2GiB",
+    },
+    "621.wrf_s": {
+        "stack": "1GiB",
+    },
+    "627.cam4_s": {
+        "stack": "1GiB",
+    },
 }
 
 resources = {
