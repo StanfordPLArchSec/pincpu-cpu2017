@@ -38,7 +38,8 @@ rule resume_all_stats:
         stamps = lambda w: expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/{cptid}/stamp.txt",
                                   **w, cptid=get_cptids(w)),
         simpoints = "{bench}/simpoints/{type}/{size}/{group}/simpoint.{input}.json",
-        bbhist = "{bench}/profile/{size}/{sw}/bbhist/{input}/bbhist.txt",
+        # bbhist = "{bench}/profile/{size}/{sw}/bbhist/{input}/bbhist.txt",
+        bbhist = get_bbhist_,
         script = "helpers/simpoint-stats.py",
     output:
         "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/stats.txt"
