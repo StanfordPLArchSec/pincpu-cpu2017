@@ -75,12 +75,20 @@ checkpoint bbv_valgrind:
             command="prlimit --stack=unlimited -- valgrind --tool=exp-bbv --log-file=$outdir/valout.txt --bb-out-file=$outdir/bbv.txt --interval-size={params.interval} 2>$outdir/stderr.txt",
         ) + " && {input.bbvinfo} --warmup={params.warmup} {params.outdir}/*/bbv.txt"
 
-def get_bbv(w):
-    d = {
-        "valgrind": checkpoints.bbv_valgrind,
-        "legacy": checkpoints.bbv_legacy,
-        "translate": checkpoints.bbv_translate,
-    }
-    outdir = os.path.dirname(d[w.type].get(**w).output.stamp)
-    bbv, = expand(outdir + "/{input}/bbv.txt", input=w.input)
+checkpoint_bbv_lut = {
+    "valgrind": checkpoints.bbv_valgrind,
+    "legacy": checkpoints.bbv_legacy,
+    "translate": checkpoints.bbv_translate,
+}
+
+def get_bbv_shared(w, path, **kwargs):
+    outdir = os.path.dirname(checkpoint_bbv_lut[w.type].get(**w, **kwargs).output.stamp)
+    bbv, = expand(outdir + "/{input}/" + path, input=w.input)
     return bbv
+
+def get_bbv(w, **kwargs):
+    return get_bbv_shared(w, "bbv.txt", **kwargs)
+
+def get_bbvinfo(w, **kwargs):
+    return get_bbv_shared(w, "bbvinfo.txt", **kwargs)
+    

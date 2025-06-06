@@ -46,9 +46,12 @@ wildcard_constraints:
     
 def list_group(name):
     if name in compilers:
-        return name
+        return [name]
     else:
         return groups[name]
+
+def group_leader(name):
+    return list_group(name)[0]
 
 from hwconfs import hwconfs
 
@@ -284,5 +287,5 @@ include: "rules/waypoints.smk"
 include: "rules/kvm.smk"
 include: "rules/bbv.smk"
 include: "rules/simpoint.smk"
-include: "rules/simpoint-legacy.smk"
-include: "rules/simpoint-translation.smk"
+include: "rules/checkpoint.smk"
+include: "rules/resume.smk"

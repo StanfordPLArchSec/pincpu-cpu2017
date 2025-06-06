@@ -1,6 +1,6 @@
 rule simpoint:
     input:
-        bbv = lambda w: get_bbv,
+        bbv = get_bbv,
         exe = simpoint_exe,
     output:
         intervals = "{bench}/simpoints/{type}/{size}/{group}/{sw}/simpoint/{input}/intervals.txt",
@@ -12,3 +12,18 @@ rule simpoint:
         "rm -rf {params.outdir} && mkdir -p {params.outdir} && "
         "{input.exe} -loadFVFile {input.bbv} -maxK {params.num_simpoints} -saveSimpoints {output.intervals} -saveSimpointWeights {output.weights} -fixedLength off "
         "> {params.outdir}/stdout 2> {params.outdir}/stderr"
+
+rule simpoint_json:
+    input:
+        intervals = lambda w: \
+            expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/simpoint/{input}/intervals.txt",
+                   **w, sw=group_leader(w.group)),
+        weights = lambda w: \
+            expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/simpoint/{input}/weights.txt",
+                   **w, sw=group_leader(w.group)),
+        bbvinfo = lambda w: get_bbvinfo(w, sw=group_leader(w.group)),
+        script = "helpers/simpoints.py",
+    output:
+        "{bench}/simpoints/{type}/{size}/{group}/simpoint.{input}.json",
+    shell:
+        "{input.script} --intervals={input.intervals} --weights={input.weights} --bbvinfo={input.bbvinfo} > {output}"
