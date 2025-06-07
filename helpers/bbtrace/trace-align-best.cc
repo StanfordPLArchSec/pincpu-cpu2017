@@ -200,7 +200,7 @@ struct InstGenerator
     const InstInfo *
     next()
     {
-        while (!block) {
+        while (!block || it == block->end()) {
             block = gen.next();
             if (!block)
                 return nullptr;
@@ -331,29 +331,29 @@ main(int argc, char *argv[])
     for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
         gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], locset);
 
-#if 0
     // Main loop.
-    std::vector<LocCount *> locs;
+    std::vector<std::vector<const InstInfo *>> chunks(gens.size());
     while (true) {
-        locs.clear();
-        for (auto &gen : gens)
-            locs.push_back(gen.next());
-        if (!locs[0]) {
-            for (LocCount *p : locs)
-                assert(!p);
-            break;
+        bool any_empty = false;
+        for (std::size_t i = 0; i < gens.size(); ++i) {
+            auto &gen = gens[i];
+            auto &chunk = chunks[i];
+            chunk.clear();
+            gen.next(std::back_inserter(chunk));
+            any_empty |= chunk.empty();
         }
-        const bool deactivate = std::any_of(locs.begin() + 1, locs.end(), [&] (auto x) { return x != locs.front(); });
-        if (deactivate) {
-            for (LocCount *p : locs)
-                *p = 0;
+        if (any_empty)
+            break;
+
+        // Are these all located singletons?
+        if (const Loc *loc = chunks[0][0]->loc) {
+            for (const auto &chunk : chunks) {
+                assert(chunk.size() == 1);
+                assert(chunk[0]->loc == loc);
+            }
         }
     }
 
-    // Print out filtered lochist.
-    for (const auto &[loc, count] : lochist) {
-        if (count)
-            std::cout << std::dec << count << " " << loc << "\n";
-    }
-#endif
+    for (const auto &chunk : chunks)
+        assert(chunk.empty());
 }
