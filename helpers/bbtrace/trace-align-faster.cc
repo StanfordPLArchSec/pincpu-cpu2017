@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <cassert>
 #include <xxhash.h>
+#include <cinttypes>
 #include <zlib.h>
 #include <err.h>
 #include <gperftools/profiler.h>
@@ -250,7 +251,7 @@ static Arguments parse_args(int argc, char* argv[]) {
 
 template <typename Generator>
 void
-work(const auto &args)
+work(const auto &args, auto printf, auto out)
 {
     std::vector<Generator> generators;
     for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
@@ -264,13 +265,13 @@ work(const auto &args)
             if (!generator.next(inst_addr, inst_count))
                 goto done;
             if (!first)
-                std::cout << " ";
+                printf(out, " ");
             if (!args.compress)
-                std::cout << std::hex << inst_addr << " ";
-            std::cout << std::dec << inst_count;
+                printf(out, "%" PRIx64 " ", inst_addr);
+            printf(out, "%zu", inst_count);
             first = false;
         }
-        std::cout << "\n";
+        printf(out, "\n");
     }
 
   done:
@@ -294,8 +295,10 @@ main(int argc, char *argv[])
     auto args = parse_args(argc, argv);
 
     if (args.compress) {
-        work<DeltaInstGenerator>(args);
+        gzFile gz = gzdopen(fileno(stdout), "wb");
+        work<DeltaInstGenerator>(args, gzprintf, gz);
+        gzclose(gz);
     } else {
-        work<CountedInstGenerator>(args);
+        work<CountedInstGenerator>(args, fprintf, stdout);
     }
 }
