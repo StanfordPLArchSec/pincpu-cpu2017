@@ -110,10 +110,10 @@ struct InstInfo
 {
     InstAddr addr;
     const Loc *loc;
-    std::string opcode;
+    const Op *op;
 
-    InstInfo(InstAddr addr, const Loc *loc)
-        : addr(addr), loc(loc)
+    InstInfo(InstAddr addr, const Loc *loc, const Op *op)
+        : addr(addr), loc(loc), op(op)
     {
     }
 };
@@ -175,7 +175,7 @@ struct BlockGenerator
                     if (locset_it != locset.end())
                         locp = &*locset_it;
                 }
-                trace.emplace_back(inst, locp);
+                trace.emplace_back(inst, locp, opmap.at(inst));
             }
         }
 
@@ -286,7 +286,43 @@ struct BatchGenerator
 };
 
 
+static std::vector<std::pair<char, char>>
+getAlignmentPairs(const std::string &ref, const std::string &exp,
+                  const std::string_view &alignment)
+{
+    auto ref_it = ref.begin();
+    auto exp_it = exp.begin();
+    std::vector<std::pair<char, char>> matches;
+    for (const char directive : alignment) {
+        switch (directive) {
+          case 0: // match
+          case 3: // mismatch
+            assert(ref_it != ref.end());
+            assert(exp_it != exp.end());
+            matches.emplace_back(*ref_it, *exp_it);
+            ++ref_it;
+            ++exp_it;
+            break;
 
+          case 2: // insertion into exp
+            assert(exp_it != exp.end());
+            ++exp_it;
+            break;
+            
+          case 1: // insertion into ref
+            assert(ref_it != ref.end());
+            matches.emplace_back(*ref_it, '\0');
+            ++ref_it;
+            break;
+
+          default:
+            std::cerr << "bad edlib opcode\n";
+            std::abort();
+        }
+    }
+
+    return matches;
+}
 
 
 // --------------------------------------------------------------------------------
@@ -370,6 +406,8 @@ main(int argc, char *argv[])
     // Main loop.
     std::vector<std::vector<const InstInfo *>> chunks(gens.size());
     std::vector<InstCount> instcounts(gens.size(), 0);
+    std::vector<const Op *> ops;
+    std::vector<std::string> seqs(gens.size());
     while (true) {
         for (std::size_t i = 0; i < gens.size(); ++i) {
             auto &gen = gens[i];
@@ -399,7 +437,57 @@ main(int argc, char *argv[])
             // If the reference block is empty, then skip.
         } else {
             // Otherwise, we need to match these somehow.
-            // TODO!
+            // First, collect the set of opcodes.
+            ops.clear();
+            for (const auto &chunk : chunks)
+                for (const InstInfo *x : chunk)
+                    ops.push_back(x->op);
+            std::sort(ops.begin(), ops.end());
+            ops.erase(std::unique(ops.begin(), ops.end()), ops.end());
+
+            const auto op_to_char = [&ops] (const Op *op) -> char {
+                static const char s[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZ";
+                assert(ops.size() <= sizeof s);
+                const auto ops_it = std::lower_bound(ops.begin(), ops.end(), op);
+                assert(ops_it != ops.end());
+                assert(*ops_it == op);
+                const std::size_t idx = ops_it - ops.begin();
+                return s[idx];
+            };
+
+            // Map each chunk to opcodes.
+            for (std::size_t i = 0; i < gens.size(); ++i) {
+                auto &seq = seqs[i];
+                seq.clear();
+                const auto &chunk = chunks[i];
+                for (const InstInfo *x : chunk)
+                    seq.push_back(op_to_char(x->op));
+            }
+
+            // Align each chunk using edlib.
+            const auto &seq_ref = seqs[0];
+            EdlibAlignConfig conf = edlibDefaultAlignConfig();
+            conf.task = EDLIB_TASK_PATH;
+            for (std::size_t i = 1; i < seqs.size(); ++i) {
+                const auto &seq_exp = seqs[i];
+                const auto result = edlibAlign(seq_ref.data(), seq_ref.size(),
+                                               seq_exp.data(), seq_exp.size(), conf);
+#if 0
+                std::cerr << seq_ref << " " << seq_exp << " " << result.editDistance
+                          << " ";
+                for (std::size_t i = 0; i < result.alignmentLength; ++i)
+                    std::cerr << (int) result.alignment[i];
+                std::cerr << "\n";
+#endif
+                const std::string_view alignment_str(
+                    reinterpret_cast<const char *>(result.alignment),
+                    std::size_t(result.alignmentLength));
+                const auto alignment = getAlignmentPairs(seq_ref, seq_exp, alignment_str);
+                for (const auto &[ref_op, exp_op] : alignment) {
+                    // TODO
+                }
+                edlibFreeAlignResult(result);
+            }
         }
 
         // Update instcounts.
