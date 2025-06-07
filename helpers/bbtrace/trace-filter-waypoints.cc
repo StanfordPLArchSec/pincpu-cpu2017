@@ -19,6 +19,7 @@
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
 using BlockHash = uint32_t;
+using LocCount = std::size_t;
 
 // --------------------------------------------------------------------------------
 // Utility: split a comma‐separated string into a vector<string>
@@ -56,7 +57,7 @@ parseBBHist(const std::string &path)
     return result;
 }
 
-using LocHist = std::unordered_map<std::string, bool>;
+using LocHist = std::unordered_map<std::string, LocCount>;
 
 static LocHist
 parseLochist(const std::string &path)
@@ -68,11 +69,12 @@ parseLochist(const std::string &path)
     }
 
     LocHist lochist;
-    std::string count;
+    LocCount count;
     std::string loc;
-    while (in >> count >> loc) {
+    while (in >> std::dec >> count >> loc) {
         assert(lochist.count(loc) == 0);
-        lochist[loc] = true;
+        assert(count > 0);
+        lochist[loc] = count;
     }
 
     return lochist;
@@ -102,7 +104,7 @@ parseLocmap(const std::string &path)
     
 
 
-using TraceInfo = std::vector<bool *>;
+using TraceInfo = std::vector<LocCount *>;
 
 // TODO: Refactor to share code with trace-align-faster.cc's implementation.
 struct BlockedLocationGenerator
@@ -128,7 +130,7 @@ struct BlockedLocationGenerator
                     const std::string &loc = locmap_it->second;
                     const auto lochist_it = lochist.find(loc);
                     if (lochist_it != lochist.end()) {
-                        bool *p = &lochist_it->second;
+                        LocCount *p = &lochist_it->second;
                         trace.push_back(p);
                     }
                 }
@@ -143,9 +145,17 @@ struct BlockedLocationGenerator
         }
     }
 
+    // TODO: Why do we even need this move operator?
+    BlockedLocationGenerator(BlockedLocationGenerator &&o)
+        : traces(std::move(o.traces)), gz(o.gz)
+    {
+        o.gz = nullptr;
+    }
+
     ~BlockedLocationGenerator()
     {
-        gzclose(gz);
+        if (gz)
+            gzclose(gz);
     }
 
     TraceInfo *
@@ -176,7 +186,7 @@ struct LocationGenerator
     {
     }
 
-    bool *
+    LocCount *
     next()
     {
       start:
@@ -193,8 +203,9 @@ struct LocationGenerator
             ++it;
             goto start;
         }
-        bool *p = *it;
+        LocCount *p = *it;
         ++it;
+        assert(p);
         return p;
     }
 };
@@ -273,21 +284,26 @@ main(int argc, char *argv[])
         gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], lochist);
 
     // Main loop.
-    std::vector<bool *> locs;
+    std::vector<LocCount *> locs;
     while (true) {
         locs.clear();
         for (auto &gen : gens)
             locs.push_back(gen.next());
         if (!locs[0]) {
-            for (bool *p : locs)
+            for (LocCount *p : locs)
                 assert(!p);
             break;
         }
-        const bool deactivate = std::any_of(locs.begin() + 1, locs.end(), [&] (auto x) { return x == locs.front(); });
+        const bool deactivate = std::any_of(locs.begin() + 1, locs.end(), [&] (auto x) { return x != locs.front(); });
         if (deactivate) {
-            for (bool *p : locs)
-                *p = false;
+            for (LocCount *p : locs)
+                *p = 0;
         }
     }
 
+    // Print out filtered lochist.
+    for (const auto &[loc, count] : lochist) {
+        if (count)
+            std::cout << std::dec << count << " " << loc << "\n";
+    }
 }
