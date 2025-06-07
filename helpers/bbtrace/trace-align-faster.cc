@@ -13,6 +13,7 @@
 #include <xxhash.h>
 #include <zlib.h>
 #include <err.h>
+#include <gperftools/profiler.h>
 
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
@@ -110,6 +111,13 @@ struct TraceGenerator
         }
     }
 
+    TraceGenerator(TraceGenerator &&other)
+        : traces(std::move(other.traces)),
+          gz(other.gz)
+    {
+        other.gz = nullptr;
+    }
+
     ~TraceGenerator()
     {
         gzclose(gz);
@@ -128,6 +136,41 @@ struct TraceGenerator
             std::cerr << "read " << bytes << " bytes\n";
             std::exit(1);
         }
+    }
+};
+
+struct CountedInstGenerator
+{
+    TraceGenerator trace_generator;
+    const TraceInfo *trace_info = nullptr;
+    std::size_t i = 0;
+    InstCount total_inst_count = 0;
+
+    CountedInstGenerator(TraceGenerator &&trace_generator)
+        : trace_generator(std::move(trace_generator))
+    {
+    }
+
+    bool 
+    next(InstAddr &inst_addr, InstCount &inst_count)
+    {
+        while (!trace_info || i == trace_info->insts.size()) {
+            const TraceInfo *new_trace_info = trace_generator.next();
+            if (!new_trace_info)
+                return false;
+            if (trace_info)
+                total_inst_count += trace_info->size;
+            trace_info = new_trace_info;
+            i = 0;
+        }
+        assert(trace_info);
+        assert(!trace_info->insts.empty());
+        assert(i < trace_info->insts.size());
+        const auto &p = trace_info->insts[i];
+        inst_addr = p.first;
+        inst_count = total_inst_count + p.second;
+        ++i;
+        return true;
     }
 };
 
@@ -182,11 +225,23 @@ static Arguments parse_args(int argc, char* argv[]) {
 int
 main(int argc, char *argv[])
 {
+    ProfilerStart("trace.prof");
     auto args = parse_args(argc, argv);
 
-    // DEBUG: Print out the first block stream.
-    TraceGenerator test_gen(args.bbtraces[0], args.bbhists[0], args.waypoints[0]);
-    while (const TraceInfo *trace = test_gen.next()) {
-        std::cout << trace << "\n";
+    std::vector<CountedInstGenerator> generators;
+    for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
+        generators.emplace_back(TraceGenerator(args.bbtraces[i], args.bbhists[i], args.waypoints[i]));
+
+    while (true) {
+        for (CountedInstGenerator &generator : generators) {
+            InstAddr inst_addr;
+            InstCount inst_count;
+            if (!generator.next(inst_addr, inst_count)) {
+                std::cerr << "TODO: handle finish\n";
+                std::exit(1);
+            }
+            std::cout << std::hex << inst_addr << " " << std::dec << inst_count << " ";
+        }
+        std::cout << "\n";
     }
 }
