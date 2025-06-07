@@ -19,11 +19,10 @@ rule localign_fast2:
         bbhists  = lambda w: [get_bbhist__(**w, sw=sw) for sw in list_group(w.group)],
         waypoints = lambda w: expand("{bench}/profile/{size}/{group}.{sw}/waypoints/{input}/waypoints.txt", **w, sw=list_group(w.group)),
         script   = "helpers/bbtrace/trace-align-faster",
-        compress = "helpers/bbtrace/align-compress.py",
     output:
         "{bench}/profile/{size}/{group}/localign/{input}/localign-fast2.txt.gz"
     shell:
-        "{input.script} --bbtraces {input.bbtraces} --bbhists {input.bbhists} --waypoints {input.waypoints} | {input.compress} | gzip > {output}"
+        "{input.script} --compress --bbtraces {input.bbtraces} --bbhists {input.bbhists} --waypoints {input.waypoints} > {output}"
         
 
 rule localign_best:
@@ -41,6 +40,21 @@ rule localign_best:
         "{input.script} --lochist {input.lochist} --locmaps {input.locmaps} "
         "--bbtraces {input.bbtraces} --bbhists {input.bbhists} --exes {input.exes} | {input.compress} | gzip > {output}"
 
+rule localign_best2:
+    input:
+        locmaps  = lambda w: expand("{bench}/profile/{size}/{sw}/locmap/{input}/locmap.txt",   **w, sw=list_group(w.group)),
+        bbtraces = lambda w: [get_bbtrace(w, sw=sw) for sw in list_group(w.group)],
+        bbhists  = lambda w: [get_bbhist__(**w, sw=sw) for sw in list_group(w.group)],
+        opmaps   = lambda w: expand("{bench}/profile/{size}/{sw}/opmap/{input}/opmap.txt", **w, sw=list_group(w.group)),
+        lochist  = "{bench}/profile/{size}/{group}/lochist/{input}/lochist-filtered2.txt",
+        script   = "helpers/bbtrace/trace-align-best",
+        compress = "helpers/bbtrace/align-compress.py",
+    output:
+        "{bench}/profile/{size}/{group}/localign/{input}/localign-best2.txt.gz"
+    shell:
+        "{input.script} --lochist {input.lochist} --locmaps {input.locmaps} "
+        "--bbtraces {input.bbtraces} --bbhists {input.bbhists} --opmaps {input.opmaps} | {input.compress} | gzip > {output}"
+        
 rule locerror:
     input:
         ref = "{bench}/profile/{size}/{group}/localign/{input}/localign-best.txt.gz",
