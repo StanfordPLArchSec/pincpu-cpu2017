@@ -104,15 +104,16 @@ parseLocmap(const std::string &path)
 
 using TraceInfo = std::vector<bool *>;
 
-struct LocationGenerator
+// TODO: Refactor to share code with trace-align-faster.cc's implementation.
+struct BlockedLocationGenerator
 {
     std::unordered_map<BlockHash, TraceInfo> traces;
     gzFile gz;
 
-    LocationGenerator(const std::string &bbtrace_path,
-                      const std::string &bbhist_path,
-                      const std::string &locmap_path,
-                      LocHist &lochist)
+    BlockedLocationGenerator(const std::string &bbtrace_path,
+                             const std::string &bbhist_path,
+                             const std::string &locmap_path,
+                             LocHist &lochist)
     {
         const auto blockhash_to_insts = parseBBHist(bbhist_path);
         const auto locmap = parseLocmap(locmap_path);
@@ -142,9 +143,59 @@ struct LocationGenerator
         }
     }
 
-    ~LocationGenerator()
+    ~BlockedLocationGenerator()
     {
         gzclose(gz);
+    }
+
+    TraceInfo *
+    next()
+    {
+        uint32_t blockhash;
+        const int bytes = gzread(gz, &blockhash, sizeof blockhash);
+        if (bytes == 4) {
+            return &traces[blockhash];
+        } else if (bytes == 0) {
+            return nullptr;
+        } else {
+            std::cerr << "read " << bytes << " bytes\n";
+            std::exit(1);
+        }        
+    }
+};
+
+struct LocationGenerator
+{
+    BlockedLocationGenerator gen;
+    TraceInfo *block = nullptr;
+    TraceInfo::iterator it;
+
+    template <typename... Args>
+    LocationGenerator(Args&&... args)
+        : gen(std::forward<Args>(args)...)
+    {
+    }
+
+    bool *
+    next()
+    {
+      start:
+        while (!block || it == block->end()) {
+            block = gen.next();
+            if (!block)
+                return nullptr;
+            it = block->begin();
+        }
+        assert(block);
+        assert(!block->empty());
+        assert(it != block->end());
+        if (!**it) {
+            ++it;
+            goto start;
+        }
+        bool *p = *it;
+        ++it;
+        return p;
     }
 };
 
@@ -216,7 +267,27 @@ main(int argc, char *argv[])
     // Parse lochist.
     auto lochist = parseLochist(args.lochist);
 
+    // Instantiate generators.
     std::vector<LocationGenerator> gens;
     for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
         gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], lochist);
+
+    // Main loop.
+    std::vector<bool *> locs;
+    while (true) {
+        locs.clear();
+        for (auto &gen : gens)
+            locs.push_back(gen.next());
+        if (!locs[0]) {
+            for (bool *p : locs)
+                assert(!p);
+            break;
+        }
+        const bool deactivate = std::any_of(locs.begin() + 1, locs.end(), [&] (auto x) { return x == locs.front(); });
+        if (deactivate) {
+            for (bool *p : locs)
+                *p = false;
+        }
+    }
+
 }
