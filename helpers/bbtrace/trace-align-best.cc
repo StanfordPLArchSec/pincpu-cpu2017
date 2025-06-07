@@ -225,29 +225,30 @@ struct BatchGenerator
     }
 
     template <typename OutputIt>
-    OutputIt
+    bool
     next(OutputIt out)
     {
         // If we have a singleton located instruction, yield it.
         if (x) {
             *out++ = x;
             x = nullptr;
-            return out;
+            return true;
         }
 
         // Otherwise, read until the next located instruction (or end).
         // Yield the intermediate non-located instructions.
+        bool end = true;
         while (true) {
             const InstInfo *y = gen.next();
             if (!y)
-                break;
+                return !end;
+            end = false;
             if (y->loc) {
                 x = y;
-                break;
+                return true;
             }
             *out++ = y;
         }
-        return out;
     }
 };
 
@@ -322,6 +323,7 @@ int
 main(int argc, char *argv[])
 {
     auto args = parse_args(argc, argv);
+    auto &os = std::cout;
 
     // Parse lochist.
     const auto locset = parseLochist(args.lochist);
@@ -334,26 +336,37 @@ main(int argc, char *argv[])
     // Main loop.
     std::vector<std::vector<const InstInfo *>> chunks(gens.size());
     while (true) {
-        bool any_empty = false;
         for (std::size_t i = 0; i < gens.size(); ++i) {
             auto &gen = gens[i];
             auto &chunk = chunks[i];
             chunk.clear();
-            gen.next(std::back_inserter(chunk));
-            any_empty |= chunk.empty();
+            if (!gen.next(std::back_inserter(chunk)))
+                goto done;
         }
-        if (any_empty)
-            break;
 
         // Are these all located singletons?
-        if (const Loc *loc = chunks[0][0]->loc) {
-            for (const auto &chunk : chunks) {
-                assert(chunk.size() == 1);
-                assert(chunk[0]->loc == loc);
+        if (!chunks[0].empty()) {
+            if (const Loc *loc = chunks[0][0]->loc) {
+                for (const auto &chunk : chunks) {
+                    assert(chunk.size() == 1);
+                    assert(chunk[0]->loc == loc);
+                }
+
+                // Print out the trace: addr1 count1 ... addrn countn.
+                for (bool first = true; const auto &chunk : chunks) {
+                    if (!first)
+                        os << " ";
+                    first = false;
+                    os << std::hex << chunk[0]->addr;
+                }
+                os << "\n";
             }
         }
     }
 
-    for (const auto &chunk : chunks)
-        assert(chunk.empty());
+  done:
+    for (auto &gen : gens) {
+        std::vector<const InstInfo *> tmp;
+        assert(!gen.next(std::back_inserter(tmp)));
+    }
 }
