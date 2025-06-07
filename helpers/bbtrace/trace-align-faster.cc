@@ -146,8 +146,9 @@ struct CountedInstGenerator
     std::size_t i = 0;
     InstCount total_inst_count = 0;
 
-    CountedInstGenerator(TraceGenerator &&trace_generator)
-        : trace_generator(std::move(trace_generator))
+    template <typename... Args>
+    CountedInstGenerator(Args&&... args)
+        : trace_generator(std::forward<Args>(args)...)
     {
     }
 
@@ -174,6 +175,29 @@ struct CountedInstGenerator
     }
 };
 
+struct DeltaInstGenerator
+{
+    CountedInstGenerator gen;
+    InstCount prev_inst_count = 0;
+
+    template <typename... Args>
+    DeltaInstGenerator(Args&&... args)
+        : gen(std::forward<Args>(args)...)
+    {
+    }
+
+    bool
+    next(InstAddr &inst_addr, InstCount &delta_inst_count)
+    {
+        InstCount cur_inst_count;
+        if (!gen.next(inst_addr, cur_inst_count))
+            return false;
+        delta_inst_count = cur_inst_count - prev_inst_count;
+        prev_inst_count = cur_inst_count;
+        return true;
+    }
+};
+
 // --------------------------------------------------------------------------------
 // Simple argument parsing. Expect exactly these flags (order‐independent):
 //   --bbtraces <f1> <f2> …
@@ -186,7 +210,7 @@ struct Arguments {
     std::vector<std::string> bbtraces;
     std::vector<std::string> bbhists;
     std::vector<std::string> waypoints;
-    std::string lochist;
+    bool compress = false;
 };
 
 static Arguments parse_args(int argc, char* argv[]) {
@@ -194,7 +218,10 @@ static Arguments parse_args(int argc, char* argv[]) {
     std::string flag;
     for (int i = 1; i < argc; ++i) {
         std::string s(argv[i]);
-        if (s == "--bbtraces" || s == "--bbhists" || s == "--waypoints") {
+        if (s == "--compress") {
+            args.compress = true;
+            flag.clear();
+        } else if (s == "--bbtraces" || s == "--bbhists" || s == "--waypoints") {
             flag = s;
         } else if (!flag.empty()) {
             if (flag == "--bbtraces") {
@@ -221,27 +248,26 @@ static Arguments parse_args(int argc, char* argv[]) {
     return args;
 }
 
-
-int
-main(int argc, char *argv[])
+template <typename Generator>
+void
+work(const auto &args)
 {
-    ProfilerStart("trace.prof");
-    auto args = parse_args(argc, argv);
-
-    std::vector<CountedInstGenerator> generators;
+    std::vector<Generator> generators;
     for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
-        generators.emplace_back(TraceGenerator(args.bbtraces[i], args.bbhists[i], args.waypoints[i]));
+        generators.emplace_back(args.bbtraces[i], args.bbhists[i], args.waypoints[i]);
 
     while (true) {
         bool first = true;
-        for (CountedInstGenerator &generator : generators) {
+        for (auto &generator : generators) {
             InstAddr inst_addr;
             InstCount inst_count;
             if (!generator.next(inst_addr, inst_count))
                 goto done;
             if (!first)
                 std::cout << " ";
-            std::cout << std::hex << inst_addr << " " << std::dec << inst_count;
+            if (!args.compress)
+                std::cout << std::hex << inst_addr << " ";
+            std::cout << std::dec << inst_count;
             first = false;
         }
         std::cout << "\n";
@@ -258,14 +284,18 @@ main(int argc, char *argv[])
             std::abort();
         }
     }
+}
 
-#if 0
-    // Print out the last instruction counts, for backwards compatibility.
-    bool first = true;
-    for (auto &generator : generators) {
-        if (!first)
-            std::cout << " ";
-        std::cout << "<end> " << generator.total_inst_count << " ";
+
+int
+main(int argc, char *argv[])
+{
+    ProfilerStart("trace.prof");
+    auto args = parse_args(argc, argv);
+
+    if (args.compress) {
+        work<DeltaInstGenerator>(args);
+    } else {
+        work<CountedInstGenerator>(args);
     }
-#endif
 }
