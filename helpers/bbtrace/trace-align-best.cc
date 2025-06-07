@@ -561,10 +561,21 @@ struct CompressedPrinter
 {
     std::vector<InstCount> prev;
     std::size_t i = 0;
+    gzFile gz;
 
     CompressedPrinter(std::size_t n)
         : prev(n, 0)
     {
+        gz = gzdopen(fileno(stdout), "wb");
+        if (!gz) {
+            std::cerr << "failed to open gzip stdout\n";
+            std::exit(1);
+        }
+    }
+
+    ~CompressedPrinter()
+    {
+        gzclose(gz);
     }
 
     void
@@ -572,9 +583,9 @@ struct CompressedPrinter
     {
         assert(i < prev.size());
         if (i > 0)
-            std::cout << " ";
+            gzprintf(gz, " ");
         const InstCount delta = cur - prev[i];
-        std::cout << std::dec << delta;
+        gzprintf(gz, "%d", delta);
         prev[i] = cur;
         ++i;
     }
@@ -582,7 +593,7 @@ struct CompressedPrinter
     void
     newline()
     {
-        std::cout << "\n";
+        gzprintf(gz, "\n");
         i = 0;
     }
 };
