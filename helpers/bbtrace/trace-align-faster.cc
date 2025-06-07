@@ -233,15 +233,39 @@ main(int argc, char *argv[])
         generators.emplace_back(TraceGenerator(args.bbtraces[i], args.bbhists[i], args.waypoints[i]));
 
     while (true) {
+        bool first = true;
         for (CountedInstGenerator &generator : generators) {
             InstAddr inst_addr;
             InstCount inst_count;
-            if (!generator.next(inst_addr, inst_count)) {
-                std::cerr << "TODO: handle finish\n";
-                std::exit(1);
-            }
-            std::cout << std::hex << inst_addr << " " << std::dec << inst_count << " ";
+            if (!generator.next(inst_addr, inst_count))
+                goto done;
+            if (!first)
+                std::cout << " ";
+            std::cout << std::hex << inst_addr << " " << std::dec << inst_count;
+            first = false;
         }
         std::cout << "\n";
     }
+
+  done:
+
+    // Ensure that all generators were depleted.
+    for (auto &generator : generators) {
+        InstAddr inst_addr;
+        InstCount inst_count;
+        if (generator.next(inst_addr, inst_count)) {
+            std::cerr << "generator not done\n";
+            std::abort();
+        }
+    }
+
+#if 0
+    // Print out the last instruction counts, for backwards compatibility.
+    bool first = true;
+    for (auto &generator : generators) {
+        if (!first)
+            std::cout << " ";
+        std::cout << "<end> " << generator.total_inst_count << " ";
+    }
+#endif
 }
