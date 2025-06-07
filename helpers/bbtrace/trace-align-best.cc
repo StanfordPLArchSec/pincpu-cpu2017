@@ -346,6 +346,7 @@ struct Arguments {
     std::vector<std::string> locmaps;
     std::vector<std::string> opmaps;
     std::string lochist;
+    bool compress = false;
 };
 
 static Arguments parse_args(int argc, char* argv[]) {
@@ -353,7 +354,10 @@ static Arguments parse_args(int argc, char* argv[]) {
     std::string flag;
     for (int i = 1; i < argc; ++i) {
         std::string s(argv[i]);
-        if (s == "--bbtraces" || s == "--bbhists" || s == "--locmaps" || s == "--lochist" || s == "--opmaps") {
+        if (s == "--compress") {
+            args.compress = true;
+        }
+        else if (s == "--bbtraces" || s == "--bbhists" || s == "--locmaps" || s == "--lochist" || s == "--opmaps") {
             flag = s;
             if (s == "--lochist") {
                 if (i + 1 >= argc) {
@@ -395,13 +399,10 @@ static Arguments parse_args(int argc, char* argv[]) {
     return args;
 }
 
-int
-main(int argc, char *argv[])
+template <typename Print>
+void
+work(const auto &args, Print print)
 {
-    ProfilerStart("best.prof");
-    auto args = parse_args(argc, argv);
-    auto &os = std::cout;
-
     const std::size_t n = args.bbtraces.size();
 
     // Parse lochist.
@@ -440,11 +441,9 @@ main(int argc, char *argv[])
             // Print out the trace: addr1 count1 ... addrn countn.
             for (std::size_t i = 0; i < chunks.size(); ++i) {
                 const auto &chunk = chunks[i];
-                if (i > 0)
-                    os << " ";
-                os << std::hex << chunk[0]->addr << std::dec << " " << instcounts[i];
+                print.print(chunk[0]->addr, instcounts[i]);
             }
-            os << "\n";
+            print.newline();
         } else if (ref_chunk.empty()) {
             // If the reference block is empty, then skip.
         } else {
@@ -491,7 +490,7 @@ main(int argc, char *argv[])
                     std::cerr << (int) result.alignment[i];
                 std::cerr << "\n";
 #endif
-                const std::string_view alignment_str(
+                 const std::string_view alignment_str(
                     reinterpret_cast<const char *>(result.alignment),
                     std::size_t(result.alignmentLength));
                 subaligns[i - 1] = getExpAlignment(seq_ref, seq_exp, alignment_str);
@@ -508,7 +507,7 @@ main(int argc, char *argv[])
                 if (valid) {
                     // Print out ref addr and count.
                     const InstInfo *ref_x = ref_chunk[i];
-                    os << std::hex << ref_x->addr << " " << std::dec << (instcounts[0] + i);
+                    print.print(ref_x->addr, instcounts[0] + i);
 
                     // Print out addr and count.
                     for (std::size_t j = 1; j < n; ++j) {
@@ -516,9 +515,9 @@ main(int argc, char *argv[])
                         const int idx = subalign[i];
                         const auto &chunk = chunks[j];
                         const InstInfo *exp_x = chunk[idx];
-                        os << " " << std::hex << exp_x->addr << " " << std::dec << (instcounts[j] + idx);
+                        print.print(exp_x->addr, instcounts[j] + idx);
                     }
-                    os << "\n";
+                    print.newline();
                 }
             }
         }
@@ -532,5 +531,41 @@ main(int argc, char *argv[])
     for (auto &gen : gens) {
         std::vector<const InstInfo *> tmp;
         assert(!gen.next(std::back_inserter(tmp)));
+    }
+}
+
+struct FullPrinter
+{
+    bool first = true;
+
+    void
+    print(InstAddr addr, InstCount count)
+    {
+        if (first) {
+            first = false;
+        } else {
+            std::cout << " ";
+        }
+        std::cout << std::hex << addr << " " << std::dec << count;
+    }
+
+    void
+    newline()
+    {
+        std::cout << "\n";
+        first = true;
+    }
+};
+
+int
+main(int argc, char *argv[])
+{
+    ProfilerStart("best.prof");
+    auto args = parse_args(argc, argv);
+
+    if (args.compress) {
+
+    } else {
+        work(args, FullPrinter());
     }
 }
