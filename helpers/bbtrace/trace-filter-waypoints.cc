@@ -1,0 +1,222 @@
+#include <vector>
+#include <string>
+#include <optional>
+#include <stdexcept>
+#include <cstdlib>
+#include <cstdint>
+#include <iostream>
+#include <fstream>
+#include <array>
+#include <unordered_set>
+#include <unordered_map>
+#include <cassert>
+#include <xxhash.h>
+#include <cinttypes>
+#include <zlib.h>
+#include <err.h>
+#include <gperftools/profiler.h>
+
+using InstAddr = uint64_t;
+using InstCount = std::size_t;
+using BlockHash = uint32_t;
+
+// --------------------------------------------------------------------------------
+// Utility: split a comma‐separated string into a vector<string>
+// --------------------------------------------------------------------------------
+static std::vector<std::string> splitCommas(const std::string& s) {
+    std::vector<std::string> result;
+    size_t start = 0;
+    while (start < s.size()) {
+        auto comma = s.find(',', start);
+        if (comma == std::string::npos) comma = s.size();
+        result.emplace_back(s.substr(start, comma - start));
+        start = comma + 1;
+    }
+    return result;
+}
+
+static std::unordered_map<BlockHash, std::vector<InstAddr>>
+parseBBHist(const std::string &path)
+{
+    std::unordered_map<BlockHash, std::vector<InstAddr>> result;
+    std::ifstream f(path);
+    if (!f) {
+        std::cerr << "failed to open " << path << "\n";
+        std::exit(1);
+    }
+    std::string count_s;
+    std::string block;
+    while (f >> count_s >> block) {
+        const BlockHash h = XXH32(block.data(), block.size(), 0);
+        auto &v = result[h];
+        assert(v.empty());
+        for (const std::string &inst : splitCommas(block))
+            v.push_back(std::stoull(inst, nullptr, 16));
+    }
+    return result;
+}
+
+using LocHist = std::unordered_map<std::string, bool>;
+
+static LocHist
+parseLochist(const std::string &path)
+{
+    std::ifstream in(path);
+    if (!in) {
+        std::cerr << "failed to open " << path << "\n";
+        std::exit(1);
+    }
+
+    LocHist lochist;
+    std::string count;
+    std::string loc;
+    while (in >> count >> loc) {
+        assert(lochist.count(loc) == 0);
+        lochist[loc] = true;
+    }
+
+    return lochist;
+}
+
+using LocMap = std::unordered_map<InstAddr, std::string>;
+
+static LocMap
+parseLocmap(const std::string &path)
+{
+    std::ifstream in(path);
+    if (!in) {
+        std::cerr << "failed to open " << path << "\n";
+        std::exit(1);
+    }
+
+    LocMap locmap;
+    InstAddr inst_addr;
+    std::string loc;
+    while (in >> std::hex >> inst_addr >> loc) {
+        assert(!locmap.contains(inst_addr));
+        locmap[inst_addr] = std::move(loc);
+    }
+
+    return locmap;
+}
+    
+
+
+using TraceInfo = std::vector<bool *>;
+
+struct LocationGenerator
+{
+    std::unordered_map<BlockHash, TraceInfo> traces;
+    gzFile gz;
+
+    LocationGenerator(const std::string &bbtrace_path,
+                      const std::string &bbhist_path,
+                      const std::string &locmap_path,
+                      LocHist &lochist)
+    {
+        const auto blockhash_to_insts = parseBBHist(bbhist_path);
+        const auto locmap = parseLocmap(locmap_path);
+
+        // Populate traces.
+        for (const auto &[blockhash, insts] : blockhash_to_insts) {
+            auto &trace = traces[blockhash];
+            assert(trace.empty());
+            for (InstAddr inst : insts) {
+                const auto locmap_it = locmap.find(inst);
+                if (locmap_it != locmap.end()) {
+                    const std::string &loc = locmap_it->second;
+                    const auto lochist_it = lochist.find(loc);
+                    if (lochist_it != lochist.end()) {
+                        bool *p = &lochist_it->second;
+                        trace.push_back(p);
+                    }
+                }
+            }
+        }
+
+        // Open bbtrace.
+        gz = gzopen(bbtrace_path.c_str(), "rb");
+        if (!gz) {
+            std::cerr << "failed to open " << bbtrace_path << "\n";
+            std::exit(1);
+        }
+    }
+
+    ~LocationGenerator()
+    {
+        gzclose(gz);
+    }
+};
+
+// --------------------------------------------------------------------------------
+// Simple argument parsing. Expect exactly these flags (order‐independent):
+//   --bbtraces <f1> <f2> …
+//   --bbhists <h1> <h2> …
+//   --locmaps <m1> <m2> …
+//   --lochist <single_file>
+// The counts of bbtraces, bbhists, and locmaps must match.
+// --------------------------------------------------------------------------------
+struct Arguments {
+    std::vector<std::string> bbtraces;
+    std::vector<std::string> bbhists;
+    std::vector<std::string> locmaps;
+    std::string lochist;
+};
+
+static Arguments parse_args(int argc, char* argv[]) {
+    Arguments args;
+    std::string flag;
+    for (int i = 1; i < argc; ++i) {
+        std::string s(argv[i]);
+        if (s == "--bbtraces" || s == "--bbhists" || s == "--locmaps" || s == "--lochist") {
+            flag = s;
+            if (s == "--lochist") {
+                if (i + 1 >= argc) {
+                    throw std::runtime_error("--lochist requires exactly one argument");
+                }
+                args.lochist = argv[++i];
+                flag.clear();
+            }
+        }
+        else if (!flag.empty()) {
+            if (flag == "--bbtraces") {
+                args.bbtraces.push_back(s);
+            }
+            else if (flag == "--bbhists") {
+                args.bbhists.push_back(s);
+            }
+            else if (flag == "--locmaps") {
+                args.locmaps.push_back(s);
+            }
+            else {
+                throw std::runtime_error("Internal error: unrecognized flag state");
+            }
+        }
+        else {
+            throw std::runtime_error("Unexpected argument: " + s);
+        }
+    }
+
+    if (args.bbtraces.empty() || args.bbhists.empty() || args.locmaps.empty() || args.lochist.empty()) {
+        throw std::runtime_error("Must provide --bbtraces, --bbhists, --locmaps (each ≥1 file) and --lochist <file>");
+    }
+    if (args.bbtraces.size() != args.bbhists.size() ||
+        args.bbtraces.size() != args.locmaps.size()) {
+        throw std::runtime_error("Counts of bbtraces, bbhists, and locmaps must match exactly.");
+    }
+    return args;
+}
+
+int
+main(int argc, char *argv[])
+{
+    ProfilerStart("trace.prof");
+    auto args = parse_args(argc, argv);
+
+    // Parse lochist.
+    auto lochist = parseLochist(args.lochist);
+
+    std::vector<LocationGenerator> gens;
+    for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
+        gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], lochist);
+}
