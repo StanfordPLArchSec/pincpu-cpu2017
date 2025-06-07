@@ -13,6 +13,19 @@ rule localign_fast:
         "{input.script} --lochist {input.lochist} --locmaps {input.locmaps} --bbtraces {input.bbtraces} --bbhists {input.bbhists} | "
         "{input.compress} | gzip > {output}"
 
+rule localign_fast2:
+    input:
+        bbtraces = lambda w: [get_bbtrace(w, sw=sw) for sw in list_group(w.group)],
+        bbhists  = lambda w: [get_bbhist__(**w, sw=sw) for sw in list_group(w.group)],
+        waypoints = lambda w: expand("{bench}/profile/{size}/{group}.{sw}/waypoints/{input}/waypoints.txt", **w, sw=list_group(w.group)),
+        script   = "helpers/bbtrace/trace-align-faster",
+        compress = "helpers/bbtrace/align-compress.py",
+    output:
+        "{bench}/profile/{size}/{group}/localign/{input}/localign-fast2.txt.gz"
+    shell:
+        "{input.script} --bbtraces {input.bbtraces} --bbhists {input.bbhists} --waypoints {input.waypoints} | {input.compress} | gzip > {output}"
+        
+
 rule localign_best:
     input:
         locmaps  = lambda w: expand("{bench}/profile/{size}/{sw}/locmap/{input}/locmap.txt",   **w, sw=list_group(w.group)),
