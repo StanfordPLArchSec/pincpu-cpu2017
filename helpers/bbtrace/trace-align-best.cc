@@ -14,11 +14,14 @@
 #include <cinttypes>
 #include <zlib.h>
 #include <err.h>
+#include <edlib.h>
+#include <gperftools/profiler.h>
 
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
 using BlockHash = uint32_t;
 using Loc = std::string;
+using Op = std::string;
 
 // TODO: Refactor to share this with other implementations.
 // --------------------------------------------------------------------------------
@@ -107,6 +110,7 @@ struct InstInfo
 {
     InstAddr addr;
     const Loc *loc;
+    std::string opcode;
 
     InstInfo(InstAddr addr, const Loc *loc)
         : addr(addr), loc(loc)
@@ -116,18 +120,47 @@ struct InstInfo
 
 using TraceInfo = std::vector<InstInfo>;
 
+const Op *
+internOp(std::string &&op)
+{
+    static std::unordered_set<std::string> ops;
+    const auto it = ops.insert(std::move(op)).first;
+    return &*it;
+}
+
+using OpMap = std::unordered_map<InstAddr, const Op *>;
+static OpMap
+parseOpmap(const std::string &path)
+{
+    std::ifstream in(path);
+    if (!in) {
+        std::cerr << "failed to open " << path << "\n";
+        std::exit(1);
+    }
+
+    OpMap result;
+    InstAddr inst;
+    std::string op;
+    while (in >> std::hex >> inst >> op)
+        result[inst] = internOp(std::move(op));
+
+    return result;
+}
+
 struct BlockGenerator
 {
     std::unordered_map<BlockHash, TraceInfo> traces;
     gzFile gz;
 
     BlockGenerator(const std::string &bbtrace_path,
-                     const std::string &bbhist_path,
-                     const std::string &locmap_path,
-                     const LocSet &locset)
+                   const std::string &bbhist_path,
+                   const std::string &locmap_path,
+                   const std::string &opmap_path,
+                   const LocSet &locset)
     {
         const auto blockhash_to_insts = parseBBHist(bbhist_path);
         const auto locmap = parseLocmap(locmap_path);
+        const auto opmap = parseOpmap(opmap_path);
 
         // Populate traces.
         for (const auto &[blockhash, insts] : blockhash_to_insts) {
@@ -268,7 +301,7 @@ struct Arguments {
     std::vector<std::string> bbtraces;
     std::vector<std::string> bbhists;
     std::vector<std::string> locmaps;
-    std::vector<std::string> exes;
+    std::vector<std::string> opmaps;
     std::string lochist;
 };
 
@@ -277,7 +310,7 @@ static Arguments parse_args(int argc, char* argv[]) {
     std::string flag;
     for (int i = 1; i < argc; ++i) {
         std::string s(argv[i]);
-        if (s == "--bbtraces" || s == "--bbhists" || s == "--locmaps" || s == "--lochist" || s == "--exes") {
+        if (s == "--bbtraces" || s == "--bbhists" || s == "--locmaps" || s == "--lochist" || s == "--opmaps") {
             flag = s;
             if (s == "--lochist") {
                 if (i + 1 >= argc) {
@@ -297,8 +330,8 @@ static Arguments parse_args(int argc, char* argv[]) {
             else if (flag == "--locmaps") {
                 args.locmaps.push_back(s);
             }
-            else if (flag == "--exes") {
-                args.exes.push_back(s);
+            else if (flag == "--opmaps") {
+                args.opmaps.push_back(s);
             }
             else {
                 throw std::runtime_error("Internal error: unrecognized flag state");
@@ -322,6 +355,7 @@ static Arguments parse_args(int argc, char* argv[]) {
 int
 main(int argc, char *argv[])
 {
+    ProfilerStart("best.prof");
     auto args = parse_args(argc, argv);
     auto &os = std::cout;
 
@@ -331,7 +365,7 @@ main(int argc, char *argv[])
     // Instantiate generators.
     std::vector<BatchGenerator> gens;
     for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
-        gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], locset);
+        gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], args.opmaps[i], locset);
 
     // Main loop.
     std::vector<std::vector<const InstInfo *>> chunks(gens.size());
@@ -346,22 +380,26 @@ main(int argc, char *argv[])
         }
 
         // Are these all located singletons?
-        if (!chunks[0].empty()) {
-            if (const Loc *loc = chunks[0][0]->loc) {
-                for (const auto &chunk : chunks) {
-                    assert(chunk.size() == 1);
-                    assert(chunk[0]->loc == loc);
-                }
-
-                // Print out the trace: addr1 count1 ... addrn countn.
-                for (std::size_t i = 0; i < chunks.size(); ++i) {
-                    const auto &chunk = chunks[i];
-                    if (i > 0)
-                        os << " ";
-                    os << std::hex << chunk[0]->addr << std::dec << " " << instcounts[i];
-                }
-                os << "\n";
+        const Loc *singleton_loc; 
+        if (!chunks[0].empty() && (singleton_loc = chunks[0][0]->loc)) {
+            for (const auto &chunk : chunks) {
+                assert(chunk.size() == 1);
+                assert(chunk[0]->loc == singleton_loc);
             }
+
+            // Print out the trace: addr1 count1 ... addrn countn.
+            for (std::size_t i = 0; i < chunks.size(); ++i) {
+                const auto &chunk = chunks[i];
+                if (i > 0)
+                    os << " ";
+                os << std::hex << chunk[0]->addr << std::dec << " " << instcounts[i];
+            }
+            os << "\n";
+        } else if (chunks[0].empty()) {
+            // If the reference block is empty, then skip.
+        } else {
+            // Otherwise, we need to match these somehow.
+            // TODO!
         }
 
         // Update instcounts.
