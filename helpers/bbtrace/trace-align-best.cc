@@ -335,6 +335,7 @@ main(int argc, char *argv[])
 
     // Main loop.
     std::vector<std::vector<const InstInfo *>> chunks(gens.size());
+    std::vector<InstCount> instcounts(gens.size(), 0);
     while (true) {
         for (std::size_t i = 0; i < gens.size(); ++i) {
             auto &gen = gens[i];
@@ -353,15 +354,19 @@ main(int argc, char *argv[])
                 }
 
                 // Print out the trace: addr1 count1 ... addrn countn.
-                for (bool first = true; const auto &chunk : chunks) {
-                    if (!first)
+                for (std::size_t i = 0; i < chunks.size(); ++i) {
+                    const auto &chunk = chunks[i];
+                    if (i > 0)
                         os << " ";
-                    first = false;
-                    os << std::hex << chunk[0]->addr;
+                    os << std::hex << chunk[0]->addr << std::dec << " " << instcounts[i];
                 }
                 os << "\n";
             }
         }
+
+        // Update instcounts.
+        for (std::size_t i = 0; i < gens.size(); ++i)
+            instcounts[i] += chunks[i].size();
     }
 
   done:
