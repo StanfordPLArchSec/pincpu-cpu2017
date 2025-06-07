@@ -285,21 +285,26 @@ struct BatchGenerator
     }
 };
 
-
-static std::vector<std::pair<char, char>>
-getAlignmentPairs(const std::string &ref, const std::string &exp,
-                  const std::string_view &alignment)
+static std::vector<int>
+getExpAlignment(const std::string &ref, const std::string &exp,
+                const std::string_view &alignment)
 {
+    std::vector<int> exp_align;
+    if (exp.empty()) {
+        for (const auto &x : ref)
+            exp_align.push_back(-1);
+        return exp_align;
+    }
+    
     auto ref_it = ref.begin();
     auto exp_it = exp.begin();
-    std::vector<std::pair<char, char>> matches;
     for (const char directive : alignment) {
         switch (directive) {
           case 0: // match
           case 3: // mismatch
             assert(ref_it != ref.end());
             assert(exp_it != exp.end());
-            matches.emplace_back(*ref_it, *exp_it);
+            exp_align.push_back(exp_it - exp.begin());
             ++ref_it;
             ++exp_it;
             break;
@@ -311,7 +316,7 @@ getAlignmentPairs(const std::string &ref, const std::string &exp,
             
           case 1: // insertion into ref
             assert(ref_it != ref.end());
-            matches.emplace_back(*ref_it, '\0');
+            exp_align.push_back(-1);
             ++ref_it;
             break;
 
@@ -321,7 +326,9 @@ getAlignmentPairs(const std::string &ref, const std::string &exp,
         }
     }
 
-    return matches;
+    assert(exp_align.size() == ref.size());
+
+    return exp_align;
 }
 
 
@@ -395,19 +402,23 @@ main(int argc, char *argv[])
     auto args = parse_args(argc, argv);
     auto &os = std::cout;
 
+    const std::size_t n = args.bbtraces.size();
+
     // Parse lochist.
     const auto locset = parseLochist(args.lochist);
 
     // Instantiate generators.
     std::vector<BatchGenerator> gens;
-    for (std::size_t i = 0; i < args.bbtraces.size(); ++i)
-        gens.emplace_back(args.bbtraces[i], args.bbhists[i], args.locmaps[i], args.opmaps[i], locset);
+    for (std::size_t i = 0; i < n; ++i)
+        gens.emplace_back(args.bbtraces[i], args.bbhists[i],
+                          args.locmaps[i], args.opmaps[i], locset);
 
     // Main loop.
-    std::vector<std::vector<const InstInfo *>> chunks(gens.size());
-    std::vector<InstCount> instcounts(gens.size(), 0);
+    std::vector<std::vector<const InstInfo *>> chunks(n);
+    std::vector<InstCount> instcounts(n, 0);
     std::vector<const Op *> ops;
-    std::vector<std::string> seqs(gens.size());
+    std::vector<std::string> seqs(n);
+    std::vector<std::vector<int>> subaligns(n - 1);
     while (true) {
         for (std::size_t i = 0; i < gens.size(); ++i) {
             auto &gen = gens[i];
@@ -418,8 +429,9 @@ main(int argc, char *argv[])
         }
 
         // Are these all located singletons?
-        const Loc *singleton_loc; 
-        if (!chunks[0].empty() && (singleton_loc = chunks[0][0]->loc)) {
+        const Loc *singleton_loc;
+        auto &ref_chunk = chunks[0];
+        if (!ref_chunk.empty() && (singleton_loc = ref_chunk[0]->loc)) {
             for (const auto &chunk : chunks) {
                 assert(chunk.size() == 1);
                 assert(chunk[0]->loc == singleton_loc);
@@ -433,7 +445,7 @@ main(int argc, char *argv[])
                 os << std::hex << chunk[0]->addr << std::dec << " " << instcounts[i];
             }
             os << "\n";
-        } else if (chunks[0].empty()) {
+        } else if (ref_chunk.empty()) {
             // If the reference block is empty, then skip.
         } else {
             // Otherwise, we need to match these somehow.
@@ -482,11 +494,32 @@ main(int argc, char *argv[])
                 const std::string_view alignment_str(
                     reinterpret_cast<const char *>(result.alignment),
                     std::size_t(result.alignmentLength));
-                const auto alignment = getAlignmentPairs(seq_ref, seq_exp, alignment_str);
-                for (const auto &[ref_op, exp_op] : alignment) {
-                    // TODO
-                }
+                subaligns[i - 1] = getExpAlignment(seq_ref, seq_exp, alignment_str);
                 edlibFreeAlignResult(result);
+            }
+
+            // For each ref subalignment position, if the exps were successfully aligned,
+            // then print those out.
+            for (std::size_t i = 0; i < ref_chunk.size(); ++i) {
+                const bool valid = std::all_of(
+                    subaligns.begin(), subaligns.end(), [i] (const auto &subalign) -> bool {
+                        return subalign[i] >= 0;
+                    });
+                if (valid) {
+                    // Print out ref addr and count.
+                    const InstInfo *ref_x = ref_chunk[i];
+                    os << std::hex << ref_x->addr << " " << std::dec << (instcounts[0] + i);
+
+                    // Print out addr and count.
+                    for (std::size_t j = 1; j < n; ++j) {
+                        const auto &subalign = subaligns[j - 1];
+                        const int idx = subalign[i];
+                        const auto &chunk = chunks[j];
+                        const InstInfo *exp_x = chunk[idx];
+                        os << " " << std::hex << exp_x->addr << " " << std::dec << (instcounts[j] + idx);
+                    }
+                    os << "\n";
+                }
             }
         }
 
