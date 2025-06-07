@@ -48,12 +48,11 @@ rule localign_best2:
         opmaps   = lambda w: expand("{bench}/profile/{size}/{sw}/opmap/{input}/opmap.txt", **w, sw=list_group(w.group)),
         lochist  = "{bench}/profile/{size}/{group}/lochist/{input}/lochist-filtered2.txt",
         script   = "helpers/bbtrace/trace-align-best",
-        compress = "helpers/bbtrace/align-compress.py",
     output:
         "{bench}/profile/{size}/{group}/localign/{input}/localign-best2.txt.gz"
     shell:
-        "{input.script} --lochist {input.lochist} --locmaps {input.locmaps} "
-        "--bbtraces {input.bbtraces} --bbhists {input.bbhists} --opmaps {input.opmaps} | {input.compress} | gzip > {output}"
+        "{input.script} --compress --lochist {input.lochist} --locmaps {input.locmaps} "
+        "--bbtraces {input.bbtraces} --bbhists {input.bbhists} --opmaps {input.opmaps} | gzip > {output}"
         
 rule locerror:
     input:
