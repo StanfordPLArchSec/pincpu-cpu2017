@@ -331,6 +331,47 @@ getExpAlignment(const std::string &ref, const std::string &exp,
     return exp_align;
 }
 
+struct CacheEntry
+{
+    std::string ref;
+    std::string exp;
+    EdlibAlignResult result;
+
+    CacheEntry(const std::string &ref, const std::string &exp,
+               const EdlibAlignResult &result)
+        : ref(ref), exp(exp), result(result)
+    {
+    }
+};
+
+static auto
+edlibAlignCached(const std::string &ref, const std::string &exp, const EdlibAlignConfig &conf)
+{
+    static constexpr std::size_t cache_size = 1024;
+    static std::array<std::optional<CacheEntry>, cache_size> cache;
+
+    // Look up in cache.
+    std::uint64_t hash = 0;
+    hash = XXH32(ref.data(), ref.size(), hash);
+    hash = XXH32(exp.data(), exp.size(), hash);
+    hash &= cache_size - 1;
+    auto &ent = cache[hash];
+    if (!(ent && ent->ref == ref && ent->exp == exp)) {
+        // Recompute.
+        const EdlibAlignResult result = edlibAlign(ref.data(), ref.size(), exp.data(), exp.size(), conf);
+        if (ent)
+            edlibFreeAlignResult(ent->result);
+        ent = CacheEntry(ref, exp, result);
+    }
+    return ent->result;
+}
+
+static auto
+edlibAlignNocache(const std::string &ref, const std::string &exp, const EdlibAlignConfig &conf)
+{
+    return edlibAlign(ref.data(), ref.size(), exp.data(), exp.size(), conf);
+}
+
 
 // --------------------------------------------------------------------------------
 // Simple argument parsing. Expect exactly these flags (order‐independent):
@@ -481,8 +522,7 @@ work(const auto &args, Print print)
             conf.task = EDLIB_TASK_PATH;
             for (std::size_t i = 1; i < seqs.size(); ++i) {
                 const auto &seq_exp = seqs[i];
-                const auto result = edlibAlign(seq_ref.data(), seq_ref.size(),
-                                               seq_exp.data(), seq_exp.size(), conf);
+                const auto result = edlibAlignCached(seq_ref, seq_exp, conf);
 #if 0
                 std::cerr << seq_ref << " " << seq_exp << " " << result.editDistance
                           << " ";
@@ -494,7 +534,6 @@ work(const auto &args, Print print)
                     reinterpret_cast<const char *>(result.alignment),
                     std::size_t(result.alignmentLength));
                 subaligns[i - 1] = getExpAlignment(seq_ref, seq_exp, alignment_str);
-                edlibFreeAlignResult(result);
             }
 
             // For each ref subalignment position, if the exps were successfully aligned,
