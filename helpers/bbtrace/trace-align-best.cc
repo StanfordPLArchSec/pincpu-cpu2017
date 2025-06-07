@@ -557,14 +557,46 @@ struct FullPrinter
     }
 };
 
+struct CompressedPrinter
+{
+    std::vector<InstCount> prev;
+    std::size_t i = 0;
+
+    CompressedPrinter(std::size_t n)
+        : prev(n, 0)
+    {
+    }
+
+    void
+    print(InstAddr addr, InstCount cur)
+    {
+        assert(i < prev.size());
+        if (i > 0)
+            std::cout << " ";
+        const InstCount delta = cur - prev[i];
+        std::cout << std::dec << delta;
+        prev[i] = cur;
+        ++i;
+    }
+
+    void
+    newline()
+    {
+        std::cout << "\n";
+        i = 0;
+    }
+};
+
 int
 main(int argc, char *argv[])
 {
     ProfilerStart("best.prof");
     auto args = parse_args(argc, argv);
 
-    if (args.compress) {
+    const std::size_t n = args.bbtraces.size();
 
+    if (args.compress) {
+        work(args, CompressedPrinter(n));
     } else {
         work(args, FullPrinter());
     }
