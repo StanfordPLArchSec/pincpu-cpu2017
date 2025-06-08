@@ -601,43 +601,24 @@ struct CompressedPrinter
 {
     std::vector<InstCount> prev;
     std::size_t i = 0;
-    gzFile gz;
 
     CompressedPrinter(std::size_t n)
         : prev(n, 0)
     {
-        gz = gzdopen(fileno(stdout), "wb");
-        if (!gz) {
-            std::cerr << "failed to open gzip stdout\n";
-            std::exit(1);
-        }
-    }
-
-    ~CompressedPrinter()
-    {
-        gzclose(gz);
     }
 
     void
     print(InstAddr addr, InstCount cur)
     {
         assert(i < prev.size());
-        if (i > 0) {
-            const char space = ' ';
-            gzwrite(gz, &space, 1);
-        }
+        if (i > 0)
+            putchar(' ');
         const InstCount delta = cur - prev[i];
         if (delta < 10) {
             static char lut[] = "0123456789";
-            gzwrite(gz, &lut[delta], 1);
+            putchar(lut[delta]);
         } else {
-#if 0
-            char buf[256];
-            sprintf(buf, "%lu", delta);
-            gzwrite(gz, buf, strlen(buf));
-#else
-            gzprintf(gz, "%d", delta);
-#endif
+            printf("%lu", delta);
         }
         prev[i] = cur;
         ++i;
@@ -646,8 +627,7 @@ struct CompressedPrinter
     void
     newline()
     {
-        const char newline = '\n';
-        gzwrite(gz, &newline, 1);
+        putchar('\n');
         i = 0;
     }
 };
@@ -662,8 +642,8 @@ struct CompressedBinaryPrinter : public CompressedPrinter
     void
     print(InstAddr addr, InstCount cur)
     {
-        const InstCount delta = cur - prev[i];
-        gzwrite(gz, &delta, sizeof delta);
+        const uint32_t delta = cur - prev[i];
+        fwrite(&delta, 4, 1, stdout);
         prev[i] = cur;
         ++i;
     }
