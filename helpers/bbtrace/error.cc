@@ -10,7 +10,7 @@
 #include <err.h>
 #include <cstdint>
 #include <unordered_map>
-#include <unordered_set>
+#include <set>
 #include <gperftools/profiler.h>
 
 using InstCount = std::uint64_t;
@@ -241,16 +241,21 @@ int main(int argc, char *argv[]) {
     const InstCount ref_instcount = work(bound_stream, n, errhists);
 
     // Dump the histograms.
-    std::unordered_set<InstCount> errhist_keys;
+    std::set<InstCount> errhist_keys;
     for (const auto &errhist : errhists)
         for (const auto &[key, _] : errhist)
             errhist_keys.insert(key);
     for (InstCount error : errhist_keys) {
         printf("%lu", error);
-        for (auto &errhist : errhists) {
-            const double weight = errhist[error];
-            const auto norm_weight = weight / ref_instcount;
-            printf(" %f", norm_weight);
+        for (const auto &errhist : errhists) {
+            const auto it = errhist.find(error);
+            if (it == errhist.end()) {
+                printf(" -");
+            } else {
+                const double weight = it->second;
+                const auto norm_weight = weight / ref_instcount;
+                printf(" %f", norm_weight);
+            }
         }
         printf("\n");
     }
