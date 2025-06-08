@@ -290,3 +290,6 @@ include: "rules/bbv.smk"
 include: "rules/simpoint.smk"
 include: "rules/checkpoint.smk"
 include: "rules/resume.smk"
+
+# Nulls.
+include: "rules/null.smk"
