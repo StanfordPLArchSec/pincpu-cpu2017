@@ -11,18 +11,13 @@ checkpoint bbtrace:
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+        script_opts = "",
     resources:
         runtime = "2d",
         mem = lambda w: get_resources(w).hostmem,
     shell:
-        'rm -rf {params.outdir} && '
-        r'outdir="$PWD/{params.outdir}/\${{workload}}" && '
-        'cd cpu2017 && source shrc && cd .. && '
-        r'monitor_wrapper="mkdir -p $outdir && $PWD/wrap.py --stdout=$outdir/stdout.txt -- /usr/bin/time -vo $outdir/time.txt -- prlimit --as={params.hostmem} -- {input.gem5} -re --silent-redirect --outdir=$outdir --debug-flag=Heartbeat --debug-file=dbgout.txt {input.script} --output=stdout.txt --errout=stderr.txt --max-stack-size={params.stack} --mem-size={params.sim_mem} --bbtrace $outdir/bbtrace.txt.gz -- \${{command}}" && '
-        r'monitor_specrun_wrapper="$PWD/wrap-specinvoke.py -- \${{command}}" && '
-        + runcpu_run + ' --config=pincpu-{wildcards.sw} --tune=base --action=run --output_root=$PWD/{params.build} --size={wildcards.size} --noreportable '
-        '--define monitor_wrapper="$monitor_wrapper" --define monitor_specrun_wrapper="$monitor_specrun_wrapper" {wildcards.bench} && '
-        'touch {output.stamp}'
+        rules.cpu2017.shell_run_bench_gem5(
+            runcpu_run, script_opts="--bbtrace $outdir/bbtrace.txt.gz")
 
 # TODO: Unify with other functions doing similar tasks. Lots of repeated code.
 def get_bbtrace(w, **kwargs):
