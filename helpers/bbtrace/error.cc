@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <unordered_map>
 #include <set>
-#include <gperftools/profiler.h>
 
 using InstCount = std::uint64_t;
 using SignedInstCount = std::int64_t;
@@ -222,8 +221,6 @@ work(BoundStream &bound_stream, std::size_t n, std::vector<ErrHist> &errhists)
 }
 
 int main(int argc, char *argv[]) {
-    ProfilerStart("error.prof");
-
     if (argc != 4) {
         std::cerr << "usage: " << argv[0] << " n reftrace exptrace\n";
         return EXIT_FAILURE;

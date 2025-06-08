@@ -16,7 +16,6 @@
 #include <zlib.h>
 #include <err.h>
 #include <edlib.h>
-#include <gperftools/profiler.h>
 
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
@@ -658,7 +657,6 @@ struct CompressedBinaryPrinter : public CompressedPrinter
 int
 main(int argc, char *argv[])
 {
-    ProfilerStart("best.prof");
     auto args = parse_args(argc, argv);
 
     const std::size_t n = args.bbtraces.size();

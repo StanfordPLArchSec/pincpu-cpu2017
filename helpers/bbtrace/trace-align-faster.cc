@@ -14,7 +14,6 @@
 #include <cinttypes>
 #include <zlib.h>
 #include <err.h>
-#include <gperftools/profiler.h>
 
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
@@ -290,7 +289,6 @@ work(const auto &args, auto printf, auto out)
 int
 main(int argc, char *argv[])
 {
-    ProfilerStart("trace.prof");
     auto args = parse_args(argc, argv);
 
     if (args.compress) {

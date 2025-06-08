@@ -14,7 +14,6 @@
 #include <cinttypes>
 #include <zlib.h>
 #include <err.h>
-#include <gperftools/profiler.h>
 
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
@@ -272,7 +271,6 @@ static Arguments parse_args(int argc, char* argv[]) {
 int
 main(int argc, char *argv[])
 {
-    ProfilerStart("trace.prof");
     auto args = parse_args(argc, argv);
 
     // Parse lochist.
