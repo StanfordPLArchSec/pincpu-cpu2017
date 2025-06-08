@@ -5,8 +5,45 @@
 #include <sstream>
 #include <vector>
 #include <cassert>
+#include <cstring>
+#include <cstdio>
+#include <err.h>
 #include <gperftools/profiler.h>
 
+struct CompressedTraceStream
+{
+    FILE *in;
+
+    CompressedTraceStream(const std::string &path)
+    {
+        if ((in = std::fopen(path.c_str(), "r")) == nullptr)
+            err(EXIT_FAILURE, "fopen");
+    }        
+
+    bool
+    next(std::vector<int> &v)
+    {
+        assert(v.empty());
+
+        char line[256];
+        if (!std::fgets(line, sizeof line, in)) {
+            if (std::feof(in))
+                return false;
+            err(EXIT_FAILURE, "fgets");
+        }
+
+        char *s = line;
+        while (const char *token = strsep(&s, " ")) {
+            if (token[0])
+                v.push_back(std::atoi(token));
+        }
+
+        assert(!v.empty());
+        return true;
+    }
+};
+
+#if 0
 struct CompressedTraceStream
 {
     std::ifstream in;
@@ -38,6 +75,7 @@ struct CompressedTraceStream
         return true;
     }
 };
+#endif
 
 int main(int argc, char *argv[]) {
     ProfilerStart("error.prof");
@@ -49,7 +87,7 @@ int main(int argc, char *argv[]) {
 
     const std::string ref_path = argv[1];
     const std::string exp_path = argv[2];
-
+    
     // DEBUG
     CompressedTraceStream ref_stream(ref_path);
     std::vector<int> ref_deltas;
