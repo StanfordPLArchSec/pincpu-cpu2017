@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <err.h>
 #include <cstdint>
+#include <unordered_map>
+#include <unordered_set>
 #include <gperftools/profiler.h>
 
 using InstCount = std::uint64_t;
@@ -171,10 +173,13 @@ computeError(const Bound &block, std::vector<InstCount> &out)
     }
 }
 
-static void
-work(BoundStream &bound_stream, std::size_t n)
+using ErrHist = std::unordered_map<InstCount, std::size_t>;
+
+static InstCount
+work(BoundStream &bound_stream, std::size_t n, std::vector<ErrHist> &errhists)
 {
     std::vector<InstCount> error(n - 1);
+    InstCount ref_instcount = 0;
     while (const Bound *bound = bound_stream.next()) {
 #if 0
         const auto print_arr = [] (const auto &v) {
@@ -195,13 +200,25 @@ work(BoundStream &bound_stream, std::size_t n)
         printf(" weight=%lu\n", bound->weight);
 #endif
 
+        ref_instcount = bound->ref_end[0];
+
         // Compute error.
         computeError(*bound, error);
+
+#if 0
+        // Print out the errhist (same as --errhist python option).
         printf("%lu %lu", bound->weight, bound->exp[0]);
         for (InstCount x : error)
             printf(" %lu", x);
         printf("\n");
+#endif
+
+        // Update the histograms.
+        for (std::size_t i = 0; i < n - 1; ++i)
+            errhists[i][error[i]] += bound->weight;
     }
+
+    return ref_instcount;
 }
 
 int main(int argc, char *argv[]) {
@@ -219,9 +236,32 @@ int main(int argc, char *argv[]) {
     AlignStream ref_stream(ref_path, n);
     AlignStream exp_stream(exp_path, n);
     BoundStream bound_stream(ref_stream, exp_stream, n);
+    std::vector<ErrHist> errhists(n - 1);
 
-#if 1
-    work(bound_stream, n);
+    const InstCount ref_instcount = work(bound_stream, n, errhists);
+
+    // Dump the histograms.
+    std::unordered_set<InstCount> errhist_keys;
+    for (const auto &errhist : errhists)
+        for (const auto &[key, _] : errhist)
+            errhist_keys.insert(key);
+    for (InstCount error : errhist_keys) {
+        printf("%lu", error);
+        for (auto &errhist : errhists) {
+            const double weight = errhist[error];
+            const auto norm_weight = weight / ref_instcount;
+            printf(" %f", norm_weight);
+        }
+        printf("\n");
+    }
+
+#if 0
+    for (std::size_t i = 0; i < n - 1; ++i) {
+        for (const auto &[error, weight] : errhists[i]) {
+            const double norm_weight = static_cast<double>(weight) / ref_instcount;
+            printf("%zu %lu %f\n", i, error, norm_weight);
+        }
+    }
 #endif
 
 #if 0
