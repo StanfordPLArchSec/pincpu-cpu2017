@@ -281,6 +281,7 @@ include: "rules/bbtrace.smk"
 include: "rules/traceval.smk" # Trace validation.
 include: "rules/bbhist.smk"
 include: "rules/locmap.smk"
+include: "rules/opmap.smk"
 include: "rules/lochist.smk"
 include: "rules/localign.smk"
 include: "rules/waypoints.smk"
