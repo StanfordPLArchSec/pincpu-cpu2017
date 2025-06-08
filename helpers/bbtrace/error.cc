@@ -8,93 +8,88 @@
 #include <cstring>
 #include <cstdio>
 #include <err.h>
+#include <cstdint>
 #include <gperftools/profiler.h>
+
+using InstCount = std::uint64_t;
 
 struct CompressedTraceStream
 {
     FILE *in;
+    std::vector<InstCount> v;
 
-    CompressedTraceStream(const std::string &path)
+    CompressedTraceStream(const std::string &path, std::size_t n)
+        : v(n)
     {
         if ((in = std::fopen(path.c_str(), "r")) == nullptr)
             err(EXIT_FAILURE, "fopen");
     }        
 
-    bool
-    next(std::vector<int> &v)
+    const std::vector<InstCount> *
+    next()
     {
-        assert(v.empty());
-
         char line[256];
         if (!std::fgets(line, sizeof line, in)) {
             if (std::feof(in))
-                return false;
+                return nullptr;
             err(EXIT_FAILURE, "fgets");
         }
 
         char *s = line;
-        while (const char *token = strsep(&s, " ")) {
-            if (token[0])
-                v.push_back(std::atoi(token));
+        for (auto it = v.begin(); it != v.end(); ++it) {
+            const char *token = strsep(&s, " ");
+            assert(token);
+            *it = std::atoi(token);
         }
 
-        assert(!v.empty());
-        return true;
+        return &v;
     }
 };
 
-#if 0
-struct CompressedTraceStream
+struct AlignStream
 {
-    std::ifstream in;
+    CompressedTraceStream in;
+    std::vector<InstCount> prev;
 
-    CompressedTraceStream(const std::string &path)
+    AlignStream(const std::string &path, std::size_t n)
+        : in(path, n), prev(n, 0)
     {
-        in.open(path);
-        if (!in) {
-            std::cerr << "error: failed to open file: " << path << "\n";
-            std::exit(1);
-        }
     }
 
-    bool
-    next(std::vector<int> &v)
+    const std::vector<InstCount> *
+    next()
     {
-        assert(v.empty());
+        const auto *delta = in.next();
+        if (!delta)
+            return nullptr;
 
-        std::string line;
-        std::getline(in, line);
-        if (!in)
-            return false;
-        assert(!line.empty());
-        std::istringstream is(line);
-        int delta;
-        while (is >> delta)
-            v.push_back(delta);
-        assert(!v.empty());
-        return true;
+        assert(delta->size() == prev.size());
+
+        std::transform(prev.begin(), prev.end(), delta->begin(),
+                       prev.begin(), std::plus<InstCount>());
+
+        return &prev;
     }
 };
-#endif
 
 int main(int argc, char *argv[]) {
     ProfilerStart("error.prof");
 
-    if (argc != 3) {
-        std::cerr << "usage: " << argv[0] << " reftrace exptrace\n";
+    if (argc != 4) {
+        std::cerr << "usage: " << argv[0] << " n reftrace exptrace\n";
         return EXIT_FAILURE;
     }
 
-    const std::string ref_path = argv[1];
-    const std::string exp_path = argv[2];
+    const std::size_t n = std::atoi(argv[1]);
+    const std::string ref_path = argv[2];
+    const std::string exp_path = argv[3];
     
     // DEBUG
-    CompressedTraceStream ref_stream(ref_path);
-    std::vector<int> ref_deltas;
-    while (ref_stream.next(ref_deltas)) {
-        for (int i : ref_deltas)
+    AlignStream ref_stream(ref_path, n);
+    std::vector<InstCount> ref_deltas;
+    while (const std::vector<InstCount> *ref_deltas = ref_stream.next()) {
+        for (int i : *ref_deltas)
             printf("%d ", i);
         printf("\n");
-        ref_deltas.clear();
     }
 }
