@@ -64,3 +64,25 @@ rule locerror:
         "{bench}/profile/{size}/{group}/localign/{input}/locerror.txt"
     shell:
         "{input.script} <(gunzip < {input.ref} | {input.decompress}) <(gunzip < {input.exp} | {input.decompress}) > {output}"
+
+rule locerror2:
+    input:
+        ref = "{bench}/profile/{size}/{group}/localign/{input}/localign-best2.txt.gz",
+        exp = "{bench}/profile/{size}/{group}/localign/{input}/localign-fast2.txt.gz",
+        script = "helpers/bbtrace/error",
+    output:
+        "{bench}/profile/{size}/{group}/localign/{input}/errhist.txt"
+    params:
+        n = lambda w: len(list_group(w.group)),
+    shell:
+        "{input.script} {params.n} <(gunzip < {input.ref}) <(gunzip < {input.exp}) > {output}"
+
+rule locstats:
+    input:
+        errhist = "{bench}/profile/{size}/{group}/localign/{input}/errhist.txt",
+        script = "helpers/bbtrace/errstats.py",
+    output:
+        "{bench}/profile/{size}/{group}/localign/{input}/errstats.txt"
+    shell:
+        "{input.script} < {input.errhist} > {output}"
+
