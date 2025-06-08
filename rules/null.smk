@@ -1,1 +1,5 @@
 include: "null/valgrind.smk"
+include: "null/native.smk"
+include: "null/pin.smk"
+include: "null/pincpu.smk"
+include: "null/kvmcpu.smk"

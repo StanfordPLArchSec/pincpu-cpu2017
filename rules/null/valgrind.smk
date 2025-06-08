@@ -10,5 +10,5 @@ rule null_valgrind:
     shell:
         rules.cpu2017.shell_run_bench(
             runcpu_run,
-            command="prlimit --stack=unlimited -- valgrind --tool=none --log-file=$outdir/valout.txt 2>$outdir/stderr.txt",
+            command="prlimit --stack=unlimited --as={params.hostmem} -- valgrind --tool=none --log-file=$outdir/valout.txt 2>$outdir/stderr.txt",
         )
