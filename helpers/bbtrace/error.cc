@@ -12,6 +12,7 @@
 #include <gperftools/profiler.h>
 
 using InstCount = std::uint64_t;
+using SignedInstCount = std::int64_t;
 
 struct CompressedTraceStream
 {
@@ -124,10 +125,58 @@ struct BoundStream
     }
 };
 
-static void
-work(BoundStream &bound_stream)
+static InstCount
+computeSingleError(InstCount a, InstCount b)
 {
+    if (a < b) {
+        return b - a;
+    } else {
+        return a - b;
+    }
+}
+
+static void
+computeErrorExact(const std::vector<InstCount> &ref,
+                  const std::vector<InstCount> &exp,
+                  std::vector<InstCount> &out)
+{
+    assert(ref[0] == exp[0]);
+    assert(ref.size() == exp.size());
+    assert(out.size() == ref.size() - 1);
+
+    std::transform(ref.begin() + 1, ref.end(), exp.begin() + 1, out.begin(), computeSingleError);
+}
+
+static void
+computeErrorApprox(const Bound &block, std::vector<InstCount> &out)
+{
+    for (std::size_t i = 1; i < block.exp.size(); ++i) {
+        const InstCount left_err = computeSingleError(block.ref_begin[i], block.exp[i]);
+        const InstCount right_err = computeSingleError(block.ref_end[i], block.exp[i]);
+        out[i - 1] = std::max(left_err, right_err);
+    }
+}
+
+static void
+computeError(const Bound &block, std::vector<InstCount> &out)
+{
+    assert(out.size() == block.exp.size() - 1);
+
+    if (block.ref_begin[0] == block.exp[0]) {
+        computeErrorExact(block.ref_begin, block.exp, out);
+    } else if (block.ref_end[0] == block.exp[0]) {
+        computeErrorExact(block.ref_end, block.exp, out);
+    } else {
+        computeErrorApprox(block, out);
+    }
+}
+
+static void
+work(BoundStream &bound_stream, std::size_t n)
+{
+    std::vector<InstCount> error(n - 1);
     while (const Bound *bound = bound_stream.next()) {
+#if 0
         const auto print_arr = [] (const auto &v) {
             bool first = true;
             for (InstCount x : v) {
@@ -144,6 +193,14 @@ work(BoundStream &bound_stream)
         printf(" exp=");
         print_arr(bound->exp);
         printf(" weight=%lu\n", bound->weight);
+#endif
+
+        // Compute error.
+        computeError(*bound, error);
+        printf("%lu %lu", bound->weight, bound->exp[0]);
+        for (InstCount x : error)
+            printf(" %lu", x);
+        printf("\n");
     }
 }
 
@@ -164,7 +221,7 @@ int main(int argc, char *argv[]) {
     BoundStream bound_stream(ref_stream, exp_stream, n);
 
 #if 1
-    work(bound_stream);
+    work(bound_stream, n);
 #endif
 
 #if 0
