@@ -72,6 +72,81 @@ struct AlignStream
     }
 };
 
+struct Bound
+{
+    std::vector<InstCount> ref_begin;
+    std::vector<InstCount> ref_end;
+    std::vector<InstCount> exp;
+    InstCount weight = 0;
+
+    Bound(std::size_t n)
+        : ref_begin(n, 0),
+          ref_end(n, 0),
+          exp(n, 0)
+    {
+    }
+};
+
+struct BoundStream
+{
+    AlignStream &ref_stream;
+    AlignStream &exp_stream;
+    Bound bound;
+
+    BoundStream(AlignStream &ref_stream, AlignStream &exp_stream, std::size_t n)
+        : ref_stream(ref_stream), exp_stream(exp_stream), bound(n)
+    {
+    }
+
+    const Bound *
+    next()
+    {
+        // Get the next exp.
+        const auto *exp_ptr = exp_stream.next();
+        if (!exp_ptr)
+            return nullptr;
+        const auto &exp = *exp_ptr;
+
+        // Shift the reference interval if needed.
+        while (exp[0] > bound.ref_end[0]) {
+            bound.ref_begin = bound.ref_end;
+            const auto *ref_ptr = ref_stream.next();
+            assert(ref_ptr); // TODO: Check in python if we can do this too. There, we return.
+            bound.ref_end = *ref_ptr;
+        }
+
+        assert(bound.ref_begin[0] <= exp[0] && exp[0] <= bound.ref_end[0]);
+
+        bound.weight = exp[0] - bound.exp[0];
+        bound.exp = exp;
+
+        return &bound;
+    }
+};
+
+static void
+work(BoundStream &bound_stream)
+{
+    while (const Bound *bound = bound_stream.next()) {
+        const auto print_arr = [] (const auto &v) {
+            bool first = true;
+            for (InstCount x : v) {
+                if (!first)
+                    printf(",");
+                printf("%lu", x);
+                first = false;
+            }
+        };
+        printf("ref_begin=");
+        print_arr(bound->ref_begin);
+        printf(" ref_end=");
+        print_arr(bound->ref_end);
+        printf(" exp=");
+        print_arr(bound->exp);
+        printf(" weight=%lu\n", bound->weight);
+    }
+}
+
 int main(int argc, char *argv[]) {
     ProfilerStart("error.prof");
 
@@ -83,13 +158,26 @@ int main(int argc, char *argv[]) {
     const std::size_t n = std::atoi(argv[1]);
     const std::string ref_path = argv[2];
     const std::string exp_path = argv[3];
-    
-    // DEBUG
+
     AlignStream ref_stream(ref_path, n);
-    std::vector<InstCount> ref_deltas;
+    AlignStream exp_stream(exp_path, n);
+    BoundStream bound_stream(ref_stream, exp_stream, n);
+
+#if 1
+    work(bound_stream);
+#endif
+
+#if 0
+    // DEBUG
     while (const std::vector<InstCount> *ref_deltas = ref_stream.next()) {
         for (int i : *ref_deltas)
             printf("%d ", i);
         printf("\n");
     }
+    while (const std::vector<InstCount> *exp_deltas = exp_stream.next()) {
+        for (int i : *exp_deltas)
+            printf("%d ", i);
+        printf("\n");
+    }
+#endif
 }
