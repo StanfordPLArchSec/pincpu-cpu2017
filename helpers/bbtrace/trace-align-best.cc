@@ -12,6 +12,7 @@
 #include <cassert>
 #include <xxhash.h>
 #include <cinttypes>
+#include <cstring>
 #include <zlib.h>
 #include <err.h>
 #include <edlib.h>
@@ -347,7 +348,7 @@ struct CacheEntry
 static auto
 edlibAlignCached(const std::string &ref, const std::string &exp, const EdlibAlignConfig &conf)
 {
-    static constexpr std::size_t cache_size = 1024;
+    static constexpr std::size_t cache_size = 32 * 1024;
     static std::array<std::optional<CacheEntry>, cache_size> cache;
 
     // Look up in cache.
@@ -621,10 +622,23 @@ struct CompressedPrinter
     print(InstAddr addr, InstCount cur)
     {
         assert(i < prev.size());
-        if (i > 0)
-            gzprintf(gz, " ");
+        if (i > 0) {
+            const char space = ' ';
+            gzwrite(gz, &space, 1);
+        }
         const InstCount delta = cur - prev[i];
-        gzprintf(gz, "%d", delta);
+        if (delta < 10) {
+            static char lut[] = "0123456789";
+            gzwrite(gz, &lut[delta], 1);
+        } else {
+#if 0
+            char buf[256];
+            sprintf(buf, "%lu", delta);
+            gzwrite(gz, buf, strlen(buf));
+#else
+            gzprintf(gz, "%d", delta);
+#endif
+        }
         prev[i] = cur;
         ++i;
     }
@@ -632,7 +646,31 @@ struct CompressedPrinter
     void
     newline()
     {
-        gzprintf(gz, "\n");
+        const char newline = '\n';
+        gzwrite(gz, &newline, 1);
+        i = 0;
+    }
+};
+
+struct CompressedBinaryPrinter : public CompressedPrinter
+{
+    CompressedBinaryPrinter(std::size_t n)
+        : CompressedPrinter(n)
+    {
+    }
+
+    void
+    print(InstAddr addr, InstCount cur)
+    {
+        const InstCount delta = cur - prev[i];
+        gzwrite(gz, &delta, sizeof delta);
+        prev[i] = cur;
+        ++i;
+    }
+
+    void
+    newline()
+    {
         i = 0;
     }
 };
@@ -646,7 +684,11 @@ main(int argc, char *argv[])
     const std::size_t n = args.bbtraces.size();
 
     if (args.compress) {
+#if 1
         work(args, CompressedPrinter(n));
+#else
+        work(args, CompressedBinaryPrinter(n));
+#endif
     } else {
         work(args, FullPrinter());
     }
