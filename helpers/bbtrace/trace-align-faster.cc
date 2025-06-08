@@ -82,7 +82,6 @@ struct TraceInfo
 
 struct TraceGenerator
 {
-    static inline constexpr std::size_t tracelen = std::size_t(std::numeric_limits<BlockHash>::max()) + 1;
     std::unordered_map<BlockHash, TraceInfo> traces;
     gzFile gz;
 
