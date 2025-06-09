@@ -16,6 +16,7 @@
 #include <zlib.h>
 #include <err.h>
 #include <edlib.h>
+#include <algorithm>
 
 using InstAddr = uint64_t;
 using InstCount = std::size_t;
