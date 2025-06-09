@@ -36,6 +36,9 @@ def get_checkpoint(w):
 def get_cptids(w):
     cpt = os.path.dirname(checkpoints.checkpoint.get(**w).output.stamp)
     cpts =  glob.glob(f"{cpt}/{w.input}/cpt.[0-9]*/m5.cpt")
+    if len(cpts) == 0:
+        print(f"{cpt}/{w.input}/cpt.[0-9]*/m5.cpt", file=sys.stderr)
+    assert len(cpts) > 0
     cptids = []
     for cpt in cpts:
         cptids.append(cpt.split("/")[-2].split(".")[-1])
