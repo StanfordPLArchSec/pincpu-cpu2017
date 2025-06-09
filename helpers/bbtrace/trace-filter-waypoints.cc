@@ -12,6 +12,7 @@
 #include <cassert>
 #include <xxhash.h>
 #include <cinttypes>
+#include <algorithm>
 #include <zlib.h>
 #include <err.h>
 

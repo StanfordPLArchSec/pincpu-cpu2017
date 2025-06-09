@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <set>
+#include <algorithm>
 
 using InstCount = std::uint64_t;
 using SignedInstCount = std::int64_t;
