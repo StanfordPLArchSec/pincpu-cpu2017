@@ -38,7 +38,7 @@ def check_cpt(expdir):
         line = f.readlines()[-1].strip()
     if line == "Done running SimPoint!":
         return True
-    print(f"missing {cptid}: bad line:", line, file=sys.stderr)
+    print(f"missing {expdir}: bad line:", line, file=sys.stderr)
     return False
 
 
