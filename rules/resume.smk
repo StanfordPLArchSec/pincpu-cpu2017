@@ -5,11 +5,11 @@ rule resume:
         exe = "{bench}/bin/{sw}/exe",
         cpt = get_checkpoint,
     output:
-        stamp = "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/{cptid}/stamp.txt",
+        stamp = "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{maxk}/{hwconf}/{input}/{cptid}/stamp.txt",
     params:
         build = "{bench}/bin/{sw}",
-        outdir = "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/{cptid}",
-        cptdir = "{bench}/simpoints/{type}/{size}/{group}/{sw}/cpt/{input}",
+        outdir = "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{maxk}/{hwconf}/{input}/{cptid}",
+        cptdir = "{bench}/simpoints/{type}/{size}/{group}/{sw}/cpt.k{maxk}/{input}",
         script_opts = lambda w: hwconfs[w.hwconf].script_opts,
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
@@ -28,20 +28,20 @@ rule resume:
 
 rule resume_all_input:
     input:
-        lambda w: expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/{cptid}/stamp.txt",
+        lambda w: expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{maxk}/{hwconf}/{input}/{cptid}/stamp.txt",
                          **w, cptid=get_cptids(w))
     output:
-        "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/all"
+        "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{maxk}/{hwconf}/{input}/all"
 
 rule resume_all_stats:
     input:
-        stamps = lambda w: expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/{cptid}/stamp.txt",
+        stamps = lambda w: expand("{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{maxk}/{hwconf}/{input}/{cptid}/stamp.txt",
                                   **w, cptid=get_cptids(w)),
-        simpoints = "{bench}/simpoints/{type}/{size}/{group}/simpoint.{input}.json",
+        simpoints = "{bench}/simpoints/{type}/{size}/{group}/simpoint.k{maxk}.i{input}.json",
         # bbhist = "{bench}/profile/{size}/{sw}/bbhist/{input}/bbhist.txt",
         bbhist = get_bbhist_,
         script = "helpers/simpoint-stats.py",
     output:
-        "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hwconf}/{input}/stats.txt"
+        "{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{maxk}/{hwconf}/{input}/stats.txt"
     shell:
         "{input.script} --simpoints={input.simpoints} --bbhist={input.bbhist} {input.stamps} > {output}"

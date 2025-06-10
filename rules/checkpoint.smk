@@ -4,16 +4,16 @@ checkpoint checkpoint:
         script = gem5_pin_configs + "/pin-cpt.py",
         exe = "{bench}/bin/{sw}/exe",
         simpoints = lambda w: expand(
-            "{bench}/simpoints/{type}/{size}/{group}/simpoint.{input}.json",
+            "{bench}/simpoints/{type}/{size}/{group}/simpoint.k{maxk}.i{input}.json",
             **w, input=get_inputs(w)),
         waypoints = lambda w: expand(
             "{bench}/profile/{size}/{group}.{sw}/waypoints/{input}/waypoints.txt",
             **w, input=get_inputs(w)) if w.type == "translate" else [],
     output:
-        stamp = "{bench}/simpoints/{type}/{size}/{group}/{sw}/cpt/stamp.txt",
+        stamp = "{bench}/simpoints/{type}/{size}/{group}/{sw}/cpt.k{maxk}/stamp.txt",
     params:
         build = "{bench}/bin/{sw}",
-        outdir = "{bench}/simpoints/{type}/{size}/{group}/{sw}/cpt",
+        outdir = "{bench}/simpoints/{type}/{size}/{group}/{sw}/cpt.k{maxk}",
         groupdir = lambda w: os.path.abspath(expand("{bench}/simpoints/{type}/{size}/{group}", **w)[0]),
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
@@ -25,7 +25,7 @@ checkpoint checkpoint:
         rules.cpu2017.shell_run_bench_gem5(
             runcpu_run,
             script_opts=" ".join([
-                r"--simpoints-json={params.groupdir}/simpoint.\${{workload}}.json",
+                r"--simpoints-json={params.groupdir}/simpoint.k{wildcards.maxk}.i\${{workload}}.json",
                 r"--waypoints={params.waypoints}",
             ]))
 
