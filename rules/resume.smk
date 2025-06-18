@@ -14,6 +14,8 @@ rule resume:
         sim_mem = lambda w: get_resources(w).mem,
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
+    resources:
+        mem = lambda w: get_resources(w).hostmem,
     shell:
         'rm -rf {params.outdir} && '
         'mkdir -p {params.outdir} && '
