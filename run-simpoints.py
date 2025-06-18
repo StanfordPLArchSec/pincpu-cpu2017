@@ -2,7 +2,9 @@
 
 import argparse
 import os
+import sys
 import benchspec
+import subprocess
 
 # Config:
 # bench.size.workload.sw.hw.type
@@ -10,14 +12,21 @@ parser = argparse.ArgumentParser()
 parser.add_argument("configs", nargs="*", help="bench/size/workload/sw/hw/type")
 parser.add_argument("--dry-run", "-n", action="store_true")
 parser.add_argument("--all", "-a", action="store_true")
+parser.add_argument("-k", required=True, action="append")
+parser.add_argument("--cores", "-j", default="all")
+parser.add_argument("--swhw", default=None, action="append")
+parser.add_argument("--passes", choices=[0, 1, 2], type=int, default=0)
 args = parser.parse_args()
+
+if args.swhw is None:
+    args.swhw = ["base/unsafe", "base/stt", "slh/unsafe", "retpoline/unsafe"]
 
 if args.all:
     assert len(args.configs) == 0
     args.configs = []
     for mode in ["valgrind", "legacy", "translate"]:
         for bench in benchspec.benchspec:
-            for swhw in ["base/unsafe", "base/stt", "slh/unsafe", "retpoline/unsafe"]:
+            for swhw in args.swhw:
                 args.configs.append(f"{bench}/{swhw}/{mode}")
 
 # Translate benches
@@ -32,9 +41,18 @@ bench_map = {
     "641": "641.leela_s",
     "648": "648.exchange2_s",
     "657": "657.xz_s",
+    "603": "603.bwaves_s",
+    "607": "607.cactuBSSN_s",
+    "619": "619.lbm_s",
+    "621": "621.wrf_s",
+    "638": "638.imagick_s",
+    "644": "644.nab_s",
+    "649": "649.fotonik3d_s",
+    "654": "654.roms_s",
 }
 
-files = []
+targets1 = []
+targets2 = []
 for config in args.configs:
     bench, size, workload, sw, hw, type = config.split("/")
     if bench in bench_map:
@@ -43,10 +61,20 @@ for config in args.configs:
         group = "main"
     else:
         group = sw
-    files.append(f"{bench}/simpoints/{type}/{size}/{group}/{sw}/exp/{hw}/{workload}/stats.txt")
+    for k in args.k:
+        targets1.append(f"{bench}/simpoints/{type}/{size}/{group}/simpoint.k{k}.i{workload}.json")
+        targets2.append(f"{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{k}/{hw}/{workload}/stats.txt")
 
-cmd = ["snakemake", "--cores=all", "--keep-going", "--rerun-incomplete", "--nolock", *files]
-if args.dry_run:
-    print(*cmd)
-else:
-    os.execvp(cmd[0], cmd)
+def run_snakemake(targets):
+    cmd = ["snakemake", f"--cores={args.cores}", "--keep-going", "--rerun-incomplete", "--nolock", f"--resources=mem_mb={1024 * 100}", *targets]
+    if args.dry_run:
+        print(*cmd)
+    else:
+        subprocess.run(cmd, check=True)
+
+print("===== Generating SimPoints =====", file=sys.stderr)
+if args.passes == 0 or args.passes == 1:
+    run_snakemake(targets1)
+print("==== Evaluating SimPoints =====", file=sys.stderr)
+if args.passes == 0 or args.passes == 2:
+    run_snakemake(targets2)
