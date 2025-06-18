@@ -7,7 +7,7 @@ tmp=$(mktemp)
 
 runcpu "$@" | tee $tmp
 
-if grep -q '^Error:' $tmp; then
+if grep -q -e '^Error:' -e '^ERROR:' $tmp; then
     exit 1
 else
     true
