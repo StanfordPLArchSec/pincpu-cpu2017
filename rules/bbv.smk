@@ -68,11 +68,12 @@ checkpoint bbv_valgrind:
         outdir = "{bench}/simpoints/valgrind/{size}/{group}/{sw}/bbv",
         interval = interval,
         warmup = warmup,
+        stack = lambda w: humanfriendly.parse_size(get_resources(w).stack),
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
     shell:
         rules.cpu2017.shell_run_bench(
             runcpu_run,
-            command="prlimit --stack=unlimited -- valgrind --tool=exp-bbv --log-file=$outdir/valout.txt --bb-out-file=$outdir/bbv.txt --interval-size={params.interval} 2>$outdir/stderr.txt",
+            command="prlimit --stack=unlimited -- valgrind --tool=exp-bbv --main-stacksize={params.stack} --log-file=$outdir/valout.txt --bb-out-file=$outdir/bbv.txt --interval-size={params.interval} 2>$outdir/stderr.txt",
         ) + " && {input.bbvinfo} --warmup={params.warmup} {params.outdir}/*/bbv.txt"
 
 checkpoint_bbv_lut = {
