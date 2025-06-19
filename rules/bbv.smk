@@ -19,6 +19,9 @@ checkpoint bbv_translate:
         waypoints = lambda w: os.path.abspath(
             expand("{bench}/profile/{size}/{group}.{sw}/waypoints", **w)[0]),
         script_opts = "",
+    resources:
+        runtime = "2d",
+        mem = lambda w: get_resources(w).hostmem,
     shell:
         rules.cpu2017.shell_run_bench_gem5(
             runcpu_run,
@@ -46,6 +49,9 @@ checkpoint bbv_legacy:
         warmup = warmup, # TODO: Make this at top of Snakemake file.
         interval = interval, # TODO: Make this at top of Snakemake file.
         script_opts = "",
+    resources:
+        runtime = "2d",
+        mem = lambda w: get_resources(w).hostmem,
     shell:
         rules.cpu2017.shell_run_bench_gem5(
             runcpu_run,
