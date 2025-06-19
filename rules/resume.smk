@@ -15,7 +15,7 @@ rule resume:
         stack = lambda w: get_resources(w).stack,
         hostmem = lambda w: humanfriendly.parse_size(get_resources(w).hostmem),
     resources:
-        mem = lambda w: get_resources(w).hostmem,
+        mem = lambda w: get_resources(w).resumemem,
     shell:
         'rm -rf {params.outdir} && '
         'mkdir -p {params.outdir} && '
