@@ -21,6 +21,9 @@ checkpoint checkpoint:
         script_opts = "",
         waypoints = lambda w: os.path.abspath(expand(r"{bench}/profile/{size}/{group}.{sw}/waypoints/\${{workload}}/waypoints.txt",
                                                      **w)[0]) if w.type == "translate" else "",
+    resources:
+        runtime = "2d",
+        mem = lambda w: get_resources(w).hostmem,
     shell:
         rules.cpu2017.shell_run_bench_gem5(
             runcpu_run,
