@@ -86,6 +86,7 @@ resources_ref = {
     "602.gcc_s": {
         "mem": "16GiB",
         "hostmem": "20GiB",
+        "resumemem": "24GiB",
     },
     "605.mcf_s": {
         "mem": "16GiB",
@@ -176,6 +177,8 @@ def get_resources(w):
     for key, default_value in default_resource.items():
         if key not in resource:
             resource[key] = default_value
+    if "resumemem" not in resource:
+        resource["resumemem"] = resource["hostmem"]
     return types.SimpleNamespace(**resource)
 
 # FIXME: The exe is actually at CPU/{bench}/build/{benchname}_s.
