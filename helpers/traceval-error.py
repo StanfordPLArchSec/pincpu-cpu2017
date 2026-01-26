@@ -79,7 +79,7 @@ for ref_begin, ref_end, exp, weight in \
         print(weight, error)
 
     if args.errtrace:
-        print(exp[0], *error, file=errtrace_f)
+        print(weight, exp[0], *error, file=errtrace_f)
 
     for hist, err in zip(get_error_hists(len(error)), error):
         hist[err] += weight
@@ -121,7 +121,14 @@ if args.errhist:
     keys = sorted(keys)
     with open(args.errhist, "wt") as f:
         for err in keys:
-            print(err, *[int(err * errhist[err] * total_insts) for errhist in error_hists], file=f)
+            # print(err, *[int(err * errhist[err] * total_insts) for errhist in error_hists], file=f)
+            print(f"{err}", end="", file=f)
+            for errhist in error_hists:
+                if err in errhist:
+                    print(f" {errhist[err]:f}", end="", file=f)
+                else:
+                    print(" -", end="", file=f)
+            print("\n", end="", file=f)
         
 print(f"max error: {max_error}")
 print(f"median error: {median_error}")
