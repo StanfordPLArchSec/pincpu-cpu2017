@@ -22,9 +22,6 @@ warmup = 10_000_000
 compilers = ["base", "slh", "retpoline"]
 groups = {
     "main": ["base", "slh", "retpoline"],
-    "base": ["base"],
-    "slh": ["slh"],
-    "retpoline": ["retpoline"],
 }
 
 def make_list_regex(l):
@@ -101,7 +98,7 @@ resources_ref = {
     },
     "657.xz_s": {
         "mem": "32GiB",
-        "hostmem": "36GiB",
+        "hostmem": "40GiB",
     },
     "603.bwaves_s": {
         "mem": "16GiB",
