@@ -19,7 +19,7 @@ num_simpoints = 1 # Effectively unlimited.
 interval = 50_000_000
 warmup = 10_000_000
 
-compilers = ["base", "slh", "retpoline"]
+compilers = ["base", "slh", "retpoline", "inline", "unroll", "O3", "lto"]
 groups = {
     "main": ["base", "slh", "retpoline"],
 }
@@ -35,7 +35,7 @@ wildcard_constraints:
     group = make_list_regex(groups.keys()),
     size = "(test|train|ref)",
     cptid = "[0-9]+",
-    hwconf = "[a-z]+",
+    hwconf = "(-|[a-z])+",
     type = "[a-z-]+",
     # An arbitrary suffix.
     suffix = "[-a-z]*",

@@ -1,3 +1,5 @@
+# TODO: Should refactor these to share code.
+
 def shell_run_bench(runcpu_run, command, stdout=None):
     if stdout:
         stdout_arg = f"--stdout={stdout}"

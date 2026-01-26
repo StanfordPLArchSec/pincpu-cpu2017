@@ -1,11 +1,12 @@
-import types
+
+from types import SimpleNamespace as Namespace
 
 hwconfs = {
-    "unsafe": types.SimpleNamespace(
+    "unsafe": Namespace(
         sim = "base",
         script_opts = [],
     ),
-    "stt": types.SimpleNamespace(
+    "stt": Namespace(
         sim = "stt",
         script_opts = [
             "--stt",

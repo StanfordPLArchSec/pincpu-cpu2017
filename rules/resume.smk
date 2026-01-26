@@ -20,13 +20,13 @@ rule resume:
     shell:
         'rm -rf {params.outdir} && '
         'mkdir -p {params.outdir} && '
-        '/usr/bin/time -vo {params.outdir}/time.txt -- {input.gem5} -re --silent-redirect --outdir={params.outdir} --debug-flag=Heartbeat --debug-file=dbgout.txt '
-        '{input.script} --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --max-stack-size={params.stack} --mem-size={params.sim_mem} '
+        '/usr/bin/time -vo {params.outdir}/time.txt -- {input.gem5} -re --silent-redirect --outdir={params.outdir} --debug-file=dbgout.txt '
+        '{input.script} --output=stdout.txt --errout=stderr.txt --cpu-type=X86O3CPU --caches --mem-size={params.sim_mem} '
         '--checkpoint-dir={params.cptdir} '
         '--checkpoint-restore=$(({wildcards.cptid}+1)) '
         '--restore-simpoint-checkpoint '
         '{params.script_opts} '
-        '-- {input.exe} '
+        '--cmd {input.exe} '
         '&& touch {output.stamp} '
 
 rule resume_all_input:
