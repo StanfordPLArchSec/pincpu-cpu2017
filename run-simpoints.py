@@ -45,6 +45,8 @@ bench_map = {
     "607": "607.cactuBSSN_s",
     "619": "619.lbm_s",
     "621": "621.wrf_s",
+    "627": "627.cam4_s",
+    "628": "628.pop2_s",
     "638": "638.imagick_s",
     "644": "644.nab_s",
     "649": "649.fotonik3d_s",
@@ -66,11 +68,14 @@ for config in args.configs:
         targets2.append(f"{bench}/simpoints/{type}/{size}/{group}/{sw}/exp.k{k}/{hw}/{workload}/stats.txt")
 
 def run_snakemake(targets):
-    cmd = ["snakemake", f"--cores={args.cores}", "--keep-going", "--rerun-incomplete", "--nolock", f"--resources=mem_mb={1024 * 100}", *targets]
+    cmd = ["./snakemake-slurm-apptainer.sh", f"--cores={args.cores}", "--keep-going", "--rerun-incomplete", "--nolock", *targets]
     if args.dry_run:
         print(*cmd)
     else:
-        subprocess.run(cmd, check=True)
+        result = subprocess.run(cmd)
+        if result.returncode != 0:
+            print("error: command failed", file=sys.stderr)
+            exit(1)
 
 print("===== Generating SimPoints =====", file=sys.stderr)
 if args.passes == 0 or args.passes == 1:
